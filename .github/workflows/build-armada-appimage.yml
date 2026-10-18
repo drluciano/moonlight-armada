@@ -4,10 +4,11 @@ permissions:
   contents: read
 
 on:
+  # Pushes to PR branches are built by the pull_request trigger, so only
+  # build pushes to main and release tags here to avoid duplicate runs.
   push:
     branches:
       - main
-      - 'claude/**'
     tags:
       - 'v*'
   pull_request:
