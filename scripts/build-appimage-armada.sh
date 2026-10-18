@@ -70,6 +70,10 @@ $CC -O2 -shared -fPIC -Wl,-soname,libproxy.so.1 \
   -Wl,--version-script=$DEPLOY_SRC/armada/libproxy-stub.map \
   -o $WORK/libproxy.so.1 $DEPLOY_SRC/armada/libproxy-stub.c || fail "Unable to build libproxy stub!"
 
+# Used by AppRun to add the app to Steam when it installs itself
+$CC -O2 -o $AD/usr/bin/steam-shortcut $DEPLOY_SRC/armada/steam-shortcut.c || fail "Unable to build steam-shortcut!"
+$STRIP $AD/usr/bin/steam-shortcut
+
 # Libraries the host must provide
 EXCL='^(ld-linux|libc\.so|libm\.so|libdl|libpthread|librt\.so|libresolv|libutil|libstdc\+\+|libgcc_s|libGL|libEGL|libGLX|libGLdispatch|libOpenGL|libGLES|libgbm|libdrm|libvulkan|libwayland-|libX11|libXext|libXrender|libXfixes|libXi\.|libXrandr|libXcursor|libxcb\.|libxcb-(dri3|glx|render\.|shm|sync|xfixes|randr|shape|xkb)|libxkbcommon\.|libasound|libfontconfig|libfreetype|libexpat|libz\.so|libdbus|libudev|libsystemd|libpipewire|libharfbuzz|libglib|libgobject|libgio|libgmodule|libpcre2-8|libffi|libmount|libblkid|libcap|libgcrypt|libgpg-error|liblzma|libzstd|liblz4|libbz2|libuuid|libpng|libbrotli|libgraphite)'
 

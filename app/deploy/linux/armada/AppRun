@@ -6,17 +6,49 @@ unset LD_PRELOAD LD_LIBRARY_PATH
 
 HERE="$(dirname "$(readlink -f "$0")")"
 
-# "--install" copies the app out of the AppImage into a normal folder and adds a
-# menu entry, so Steam can launch it like any installed app (no AppImage mount).
-if [ "$1" = "--install" ]; then
-  DEST="${XDG_DATA_HOME:-$HOME/.local/share}/moonlight-armada"
+# Opening the AppImage installs it: the app is copied to a normal folder, gets a
+# menu entry and is added to Steam, so Game Mode launches a plain installed app
+# instead of mounting the AppImage. Opening a newer AppImage updates that copy.
+DEST="${XDG_DATA_HOME:-$HOME/.local/share}/moonlight-armada"
+install_app()
+{
+  [ -n "$HOME" ] || return 1
   APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
-  rm -rf "$DEST" && mkdir -p "$DEST" "$APPS" && cp -a "$HERE/." "$DEST/" || { echo "Install failed"; exit 1; }
+  rm -rf "$DEST" && mkdir -p "$DEST" "$APPS" && cp -a "$HERE/." "$DEST/" || return 1
   sed -e "s|^Exec=.*|Exec=$DEST/AppRun %U|" -e "s|^Icon=.*|Icon=$DEST/moonlight.svg|" \
-    -e "s|^TryExec=.*||" "$HERE/moonlight.desktop" > "$APPS/moonlight-armada.desktop"
-  echo "Installed to $DEST"
-  echo "In Steam (Desktop Mode): Games > Add a Non-Steam Game > Moonlight Armada"
+    -e "/^TryExec=/d" "$HERE/moonlight.desktop" > "$APPS/moonlight-armada.desktop"
+
+  # Add a non-Steam game shortcut for every Steam account on this device. Steam
+  # picks it up the next time it starts, such as when switching to Game Mode.
+  added=""
+  for u in "$HOME/.local/share/Steam/userdata"/* "$HOME/.steam/steam/userdata"/*; do
+    [ -d "$u" ] || continue
+    u="$(readlink -f "$u")"
+    case " $seen " in *" $u "*) continue ;; esac
+    seen="$seen $u"
+    [ "$(basename "$u")" = 0 ] && continue
+    mkdir -p "$u/config"
+    vdf="$u/config/shortcuts.vdf"
+    [ -f "$vdf" ] && [ ! -f "$vdf.armada-backup" ] && cp "$vdf" "$vdf.armada-backup"
+    "$DEST/usr/bin/steam-shortcut" "$vdf" "Moonlight Armada" "$DEST/AppRun" "$DEST" "$DEST/moonlight.svg" && added=1
+  done
+
+  msg="Moonlight Armada is installed."
+  [ -n "$added" ] && msg="Moonlight Armada was added to Steam. It will appear in your library in Game Mode."
+  echo "$msg"
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -i "$DEST/moonlight.svg" "Moonlight Armada" "$msg" 2>/dev/null
+  fi
+  return 0
+}
+
+if [ "$1" = "--install" ]; then
+  install_app || { echo "Install failed"; exit 1; }
   exit 0
+fi
+if [ -n "$APPIMAGE" ] && [ "$HERE" != "$DEST" ] && \
+   ! cmp -s "$HERE/usr/bin/moonlight" "$DEST/usr/bin/moonlight"; then
+  INSTALL_RESULT="$(install_app 2>&1)" || INSTALL_RESULT="Install failed: $INSTALL_RESULT"
 fi
 
 LOGDIR="${XDG_CACHE_HOME:-$HOME/.cache}/moonlight-armada"
@@ -32,6 +64,7 @@ LOG="$LOGDIR/last-run.log"
   echo "Inherited LD_LIBRARY_PATH=$INHERITED_LD_LIBRARY_PATH"
   echo "XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP GAMESCOPE_WAYLAND_DISPLAY=$GAMESCOPE_WAYLAND_DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
   echo "Running from $HERE"
+  [ -n "$INSTALL_RESULT" ] && echo "Install: $INSTALL_RESULT"
 } > "$LOG" 2>/dev/null
 
 # Steam launches non-Steam games with its own runtime on LD_LIBRARY_PATH and

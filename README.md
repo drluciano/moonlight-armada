@@ -71,14 +71,13 @@ If your system can't mount AppImages (no FUSE), run it with `--appimage-extract-
 
 ### Adding it to Game Mode
 
-Install it once from Desktop Mode, so Steam launches a normal installed app instead of the AppImage:
+Open the AppImage once in Desktop Mode (if double-clicking does nothing, right-click it, choose **Properties → Permissions**, tick **Is executable**, and try again). The first time it opens, it installs itself:
 
-```sh
-chmod +x Moonlight-Armada-*-aarch64.AppImage
-./Moonlight-Armada-*-aarch64.AppImage --install
-```
+- it copies the app to `~/.local/share/moonlight-armada`, so Steam launches a normal installed app rather than the AppImage,
+- it adds **Moonlight Armada** to the app menu,
+- and it adds **Moonlight Armada** to Steam as a non-Steam game for every Steam account on the device. Steam shows it after it restarts, which happens when you switch to Game Mode. A backup of Steam's shortcut list is kept next to it as `shortcuts.vdf.armada-backup`.
 
-This copies the app to `~/.local/share/moonlight-armada` and adds **Moonlight Armada** to the app menu. Then, still in Desktop Mode, open Steam, choose **Add a Game → Add a Non-Steam Game**, tick **Moonlight Armada**, and click **Add Selected Programs**. To update, run `--install` again from the newer AppImage.
+To update, open a newer AppImage once the same way. If the Steam entry is missing, use **Add a Non-Steam Game** in Desktop Mode and tick **Moonlight Armada**.
 
 If it still doesn't start:
 
