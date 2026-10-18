@@ -1,6 +1,28 @@
 #!/bin/sh
+# Remember what Steam passed us (see below) before clearing it
+INHERITED_LD_PRELOAD="$LD_PRELOAD"
+INHERITED_LD_LIBRARY_PATH="$LD_LIBRARY_PATH"
+unset LD_PRELOAD LD_LIBRARY_PATH
+
 HERE="$(dirname "$(readlink -f "$0")")"
-export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+LOGDIR="${XDG_CACHE_HOME:-$HOME/.cache}/moonlight-armada"
+mkdir -p "$LOGDIR" 2>/dev/null
+LOG="$LOGDIR/last-run.log"
+
+# Keep a log of every run, including dynamic loader failures
+{
+  echo "=== $(date) ==="
+  echo "XDG_SESSION_TYPE=$XDG_SESSION_TYPE WAYLAND_DISPLAY=$WAYLAND_DISPLAY DISPLAY=$DISPLAY"
+  echo "SteamGameId=$SteamGameId"
+  echo "Inherited LD_PRELOAD=$INHERITED_LD_PRELOAD"
+  echo "Inherited LD_LIBRARY_PATH=$INHERITED_LD_LIBRARY_PATH"
+} > "$LOG" 2>/dev/null
+
+# Steam launches non-Steam games with its own runtime on LD_LIBRARY_PATH and
+# its overlay in LD_PRELOAD. Neither is meant for this app, and the runtime
+# libraries can shadow the system ones we depend on, so start clean.
+export LD_LIBRARY_PATH="$HERE/usr/lib"
 export QT_PLUGIN_PATH="$HERE/usr/plugins"
 export QML_IMPORT_PATH="$HERE/usr/qml"
 export QML2_IMPORT_PATH="$HERE/usr/qml"
@@ -10,13 +32,7 @@ if ! ldconfig -p 2>/dev/null | grep -q 'libva\.so\.2 '; then
   export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$HERE/opt/libva-fallback"
 fi
 
-# Keep a log of every run, including dynamic loader failures
-LOGDIR="${XDG_CACHE_HOME:-$HOME/.cache}/moonlight-armada"
-mkdir -p "$LOGDIR" 2>/dev/null
-LOG="$LOGDIR/last-run.log"
 {
-  echo "=== $(date) ==="
-  echo "XDG_SESSION_TYPE=$XDG_SESSION_TYPE WAYLAND_DISPLAY=$WAYLAND_DISPLAY DISPLAY=$DISPLAY"
   "$HERE/usr/bin/moonlight" "$@" 2>&1
   rc=$?
   echo "=== exit code $rc ==="
@@ -26,4 +42,4 @@ LOG="$LOGDIR/last-run.log"
       ldd "$f" 2>/dev/null | grep "not found" | sed "s|^|  $(basename "$f"): |"
     done | sort -u
   fi
-} | tee "$LOG"
+} | tee -a "$LOG"

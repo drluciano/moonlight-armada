@@ -5,7 +5,7 @@
 
 **Moonlight Armada** is a game streaming client for Snapdragon handhelds running [ArmadaOS](#about-armadaos). It is built on [moonlight-qt](https://github.com/moonlight-stream/moonlight-qt) and adds an **ultra low latency decoding mode** for Qualcomm's hardware video decoders, a **modernized interface**, and **one-file AppImage builds** made for ArmadaOS.
 
-The ultra low latency mode is a Linux port of the Snapdragon low latency work in [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android). On an AYN Odin running ArmadaOS, it brought H.264 decode time down from **6–10 ms to about 0.7 ms per frame**.
+The ultra low latency mode is a Linux port of the Snapdragon low latency work in [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android). On an AYN Odin running ArmadaOS in Desktop Mode, H.264 decodes in **under 1 ms per frame**.
 
 ![The Computers screen in Moonlight Armada](docs/screenshots/computers.png)
 
@@ -31,7 +31,7 @@ The ultra low latency mode is a Linux port of the Snapdragon low latency work in
 - **Works on today's ArmadaOS kernel.** Mainline Iris doesn't yet expose the decode order control, so Moonlight Armada detects that and prefers H.264, which outputs frames immediately without it. A [kernel patch](contrib/kernel/) is included for the ArmadaOS team to add the control.
 - **Honest diagnostics.** The performance overlay shows exactly what ultra low latency mode could enable on your hardware.
 - **Modernized interface.** A new dark theme, card-based layout, status chips, and a cleaner toolbar and settings page, designed for handheld screens and gamepad navigation.
-- **One-file install.** Each build is a single aarch64 AppImage that runs on ArmadaOS without installing anything, and can be added to Steam for Game Mode.
+- **One-file install.** Each build is a single aarch64 AppImage that runs on ArmadaOS without installing anything.
 - **Automated builds.** GitHub Actions builds, smoke-tests and publishes the AppImage on every change.
 
 ## Screenshots
@@ -64,10 +64,27 @@ Stock moonlight-qt 6.2.0 (left) next to Moonlight Armada (right), with the same 
    ```sh
    ./Moonlight-Armada-*-aarch64.AppImage
    ```
-4. To launch it from Game Mode, open Steam in Desktop Mode, choose **Add a Game → Add a Non-Steam Game**, and pick the AppImage.
+4. To launch it from Game Mode, see [Adding it to Game Mode](#adding-it-to-game-mode).
 5. Pair with your gaming PC running [Sunshine](https://github.com/LizardByte/Sunshine) (or GeForce Experience), the same as stock Moonlight.
 
 If your system can't mount AppImages (no FUSE), run it with `--appimage-extract-and-run`.
+
+### Adding it to Game Mode
+
+1. In Desktop Mode, open Steam, choose **Add a Game → Add a Non-Steam Game**, and pick the AppImage.
+2. In the shortcut's **Properties**, set **Launch Options** to:
+   ```
+   APPIMAGE_EXTRACT_AND_RUN=1 %command%
+   ```
+   Steam launches non-Steam games from its own environment, where mounting the AppImage can fail. This makes the AppImage unpack itself to a temporary folder and run from there instead.
+3. If it still doesn't start, unpack it once to a permanent folder and add the launcher to Steam instead of the AppImage:
+   ```sh
+   cd ~/Applications && ./Moonlight-Armada-*-aarch64.AppImage --appimage-extract
+   mv squashfs-root moonlight-armada
+   ```
+   Then add `~/Applications/moonlight-armada/AppRun` as the non-Steam game.
+
+Each launch writes `~/.cache/moonlight-armada/last-run.log`. If launching from Game Mode doesn't create or update that file, the failure happened before Moonlight started, while the AppImage was being mounted.
 
 ## Using ultra low latency mode
 
@@ -91,7 +108,11 @@ The overlay gains an **Ultra low latency** line that says what took effect:
 | `partial, iris_driver lacks decode order control` | HEVC or AV1 on a decoder without the control. Pacing and thread priority still apply, but the decoder may hold frames. Use H.264 or apply the [kernel patch](#the-iris-kernel-patch). |
 | `active (generic)` | A non-V4L2 decoder (for example VA-API or software). Only the generic tuning applies. |
 
-The **average decoding time** line is the number to watch. On an AYN Odin with mainline Iris, it dropped from 6–10 ms to about 0.7 ms with ultra low latency mode on. Keep in mind that this is decode time only. Network and display time are added on top of it.
+The **Video decoder** line shows which decoder is in use and whether it's hardware or software. On Snapdragon it should read `h264_v4l2m2m (hardware)` or `hevc_v4l2m2m (hardware)`.
+
+The **average decoding time** line is the number to watch. On an AYN Odin with mainline Iris in Desktop Mode, H.264 decodes in under 1 ms. Keep in mind that this is decode time only. Network and display time are added on top of it.
+
+> **Game Mode vs Desktop Mode.** Stock Moonlight on ArmadaOS measures 6–7 ms decode time in Game Mode but under 1 ms in Desktop Mode, so the session you stream from matters as much as the decoder settings. We're still working out why, and how much ultra low latency mode adds on top of each. Check the **Video decoder** line first: a `(software)` decoder in Game Mode would explain the gap.
 
 ## How ultra low latency mode works
 
