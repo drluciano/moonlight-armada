@@ -8,7 +8,9 @@
 #include <QFileInfo>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
 
@@ -195,7 +197,58 @@ bool V4L2LowLatency::applyToNewDecoders(const QSet<int>& fdsBeforeOpen,
     return false;
 }
 
+bool V4L2LowLatency::hasQualcommDecoderWithoutDecodeOrderOutput()
+{
+    QDir devDir("/dev");
+
+    for (const QString& node : devDir.entryList(QStringList() << "video*", QDir::System)) {
+        QByteArray path = devDir.filePath(node).toUtf8();
+        int fd = open(path.constData(), O_RDWR | O_NONBLOCK | O_CLOEXEC);
+        if (fd < 0) {
+            continue;
+        }
+
+        QString driverName;
+        bool result = false;
+        if (isM2MDecoder(fd, driverName) && driverName.startsWith("qcom")) {
+            // Make sure this is the decoder rather than the encoder node by
+            // looking for compressed formats on the OUTPUT (bitstream) queue
+            bool isDecoder = false;
+            struct v4l2_fmtdesc fmt;
+            for (uint32_t i = 0; !isDecoder; i++) {
+                memset(&fmt, 0, sizeof(fmt));
+                fmt.index = i;
+                fmt.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+                if (xioctl(fd, VIDIOC_ENUM_FMT, &fmt) < 0) {
+                    break;
+                }
+                isDecoder = (fmt.flags & V4L2_FMT_FLAG_COMPRESSED) != 0;
+            }
+
+            struct v4l2_queryctrl qctrl;
+            result = isDecoder && !queryControl(fd, V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE, qctrl);
+        }
+
+        close(fd);
+
+        if (result) {
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
+                        "%s (%s) lacks decode order output control",
+                        path.constData(),
+                        driverName.toUtf8().constData());
+            return true;
+        }
+    }
+
+    return false;
+}
+
 #else
+
+bool V4L2LowLatency::hasQualcommDecoderWithoutDecodeOrderOutput()
+{
+    return false;
+}
 
 QSet<int> V4L2LowLatency::snapshotVideoDeviceFds()
 {

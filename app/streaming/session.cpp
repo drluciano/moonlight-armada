@@ -9,6 +9,7 @@
 
 #ifdef HAVE_FFMPEG
 #include "video/ffmpeg.h"
+#include "video/v4l2lowlatency.h"
 #endif
 
 #ifdef HAVE_SLVIDEO
@@ -842,6 +843,19 @@ bool Session::initialize(QQuickWindow* qtWindow)
                                           m_StreamConfig.fps) != DecoderAvailability::Hardware) {
             m_SupportedVideoFormats.deprioritizeByMask(VIDEO_FORMAT_MASK_AV1);
         }
+
+        // On Snapdragon devices using the mainline Iris driver, HEVC and AV1 frames may be
+        // held in the decoder's reorder buffer because the driver can't be switched to decode
+        // order output. Our H.264 SPS fixup avoids that, so prefer H.264 in ultra low latency
+        // mode. HDR requires a 10-bit codec, so we leave things alone in that case.
+#ifdef HAVE_FFMPEG
+        if (m_Preferences->ultraLowLatency && !m_Preferences->enableHdr &&
+                V4L2LowLatency::hasQualcommDecoderWithoutDecodeOrderOutput()) {
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
+                        "Preferring H.264 for ultra low latency decoding");
+            m_SupportedVideoFormats.deprioritizeByMask(~VIDEO_FORMAT_MASK_H264);
+        }
+#endif
 
 #ifdef Q_OS_DARWIN
         {

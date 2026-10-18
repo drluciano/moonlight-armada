@@ -34,4 +34,10 @@ public:
     static bool applyToNewDecoders(const QSet<int>& fdsBeforeOpen,
                                    QString& driverName,
                                    QStringList& appliedControls);
+
+    // Returns true if this system has a Qualcomm V4L2 decoder that can't be
+    // switched to decode order output (e.g. the mainline Iris driver). On those,
+    // H.264 is the only codec where our SPS fixup should get frames output
+    // immediately, so ultra low latency mode prefers it.
+    static bool hasQualcommDecoderWithoutDecodeOrderOutput();
 };
