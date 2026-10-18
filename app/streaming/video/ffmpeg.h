@@ -128,6 +128,8 @@ private:
     int m_OriginalVideoHeight;
     int m_VideoFormat;
     bool m_NeedsSpsFixup;
+    bool m_UltraLowLatency;
+    QString m_UltraLowLatencyStatus;
     bool m_TestOnly;
     TestMode m_CurrentTestMode;
     SDL_Thread* m_DecoderThread;

@@ -1,6 +1,7 @@
 #include <Limelight.h>
 #include "ffmpeg.h"
 #include "utils.h"
+#include "v4l2lowlatency.h"
 #include "streaming/session.h"
 
 #include <h264_stream.h>
@@ -234,6 +235,7 @@ FFmpegVideoDecoder::FFmpegVideoDecoder(bool testOnly)
       m_StreamFps(0),
       m_VideoFormat(0),
       m_NeedsSpsFixup(false),
+      m_UltraLowLatency(false),
       m_TestOnly(testOnly),
       m_CurrentTestMode(TestMode::TestFrameOnly),
       m_DecoderThread(nullptr)
@@ -493,6 +495,8 @@ bool FFmpegVideoDecoder::completeInitialization(const AVCodec* decoder, enum AVP
     m_StreamFps = params->frameRate;
     m_VideoFormat = params->videoFormat;
     m_CurrentTestMode = testMode;
+    m_UltraLowLatency = params->enableUltraLowLatency;
+    m_UltraLowLatencyStatus.clear();
 
     // Don't bother initializing Pacer if we're not actually going to render
     if (testMode != TestMode::TestFrameOnly) {
@@ -581,6 +585,13 @@ bool FFmpegVideoDecoder::completeInitialization(const AVCodec* decoder, enum AVP
     SDL_assert(m_VideoDecoderCtx->opaque == nullptr);
     m_VideoDecoderCtx->opaque = this;
 
+    // V4L2 M2M decoders open their device inside avcodec_open2(), so take
+    // note of which video device fds already exist to find the new one.
+    QSet<int> videoFdsBeforeOpen;
+    if (m_UltraLowLatency) {
+        videoFdsBeforeOpen = V4L2LowLatency::snapshotVideoDeviceFds();
+    }
+
     int err = avcodec_open2(m_VideoDecoderCtx, decoder, &options);
     av_dict_free(&options);
     if (err < 0) {
@@ -588,6 +599,29 @@ bool FFmpegVideoDecoder::completeInitialization(const AVCodec* decoder, enum AVP
                      "Unable to open decoder for format: %x",
                      params->videoFormat);
         return false;
+    }
+
+    // Apply ultra low latency tuning before any data is submitted, since
+    // the V4L2 driver latches its output configuration on STREAMON.
+    if (m_UltraLowLatency) {
+        if (strstr(decoder->name, "_v4l2m2m") != nullptr) {
+            QString driverName;
+            QStringList appliedControls;
+            if (V4L2LowLatency::applyToNewDecoders(videoFdsBeforeOpen, driverName, appliedControls)) {
+                m_UltraLowLatencyStatus = QString("%1 (%2)").arg(appliedControls.join(", "), driverName);
+            }
+            else if (!driverName.isEmpty()) {
+                m_UltraLowLatencyStatus = QString("not supported by %1").arg(driverName);
+            }
+            else {
+                m_UltraLowLatencyStatus = "not supported";
+            }
+        }
+        else {
+            // Other decoders only get the generic low latency settings
+            // (no frame pacing and a real-time decoder thread).
+            m_UltraLowLatencyStatus = "generic";
+        }
     }
 
     // FFMpeg doesn't completely initialize the codec until the codec
@@ -904,6 +938,19 @@ void FFmpegVideoDecoder::stringifyVideoStats(VIDEO_STATS& stats, char* output, i
                            peakVideoMbps
 #endif
                            );
+            if (ret < 0 || ret >= length - offset) {
+                SDL_assert(false);
+                return;
+            }
+
+            offset += ret;
+        }
+
+        if (m_UltraLowLatency) {
+            ret = snprintf(&output[offset],
+                           length - offset,
+                           "Ultra low latency: %s\n",
+                           m_UltraLowLatencyStatus.toUtf8().constData());
             if (ret < 0 || ret >= length - offset) {
                 SDL_assert(false);
                 return;
@@ -1850,6 +1897,14 @@ int FFmpegVideoDecoder::decoderThreadProcThunk(void *context)
 
 void FFmpegVideoDecoder::decoderThreadProc()
 {
+    // In ultra low latency mode, the decoder thread is on the critical path
+    // between the network and the display, so don't let it get preempted.
+    if (m_UltraLowLatency && SDL_SetThreadPriority(SDL_THREAD_PRIORITY_TIME_CRITICAL) < 0) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                    "Unable to set decoder thread to time critical priority: %s",
+                    SDL_GetError());
+    }
+
     while (!SDL_AtomicGet(&m_DecoderThreadShouldQuit)) {
         if (m_FramesIn == m_FramesOut) {
             VIDEO_FRAME_HANDLE handle;

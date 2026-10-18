@@ -278,7 +278,8 @@ void Session::clSetAdaptiveTriggers(uint16_t controllerNumber, uint8_t eventFlag
 bool Session::chooseDecoder(StreamingPreferences::VideoDecoderSelection vds,
                             StreamingPreferences::RendererSelection renderer,
                             SDL_Window* window, int videoFormat, int width, int height,
-                            int frameRate, bool enableVsync, bool enableFramePacing, bool testOnly, IVideoDecoder*& chosenDecoder)
+                            int frameRate, bool enableVsync, bool enableFramePacing, bool testOnly, IVideoDecoder*& chosenDecoder,
+                            bool enableUltraLowLatency)
 {
     DECODER_PARAMETERS params;
 
@@ -293,14 +294,23 @@ bool Session::chooseDecoder(StreamingPreferences::VideoDecoderSelection vds,
     params.videoFormat = videoFormat;
     params.window = window;
     params.enableVsync = enableVsync;
-    params.enableFramePacing = enableFramePacing;
+    params.enableUltraLowLatency = enableUltraLowLatency;
     params.testOnly = testOnly;
+
+    // Frame pacing deliberately holds early frames back, which is the
+    // opposite of what ultra low latency mode is for.
+    params.enableFramePacing = enableFramePacing && !enableUltraLowLatency;
     params.vds = vds;
     params.renderer = renderer;
 
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
                 "V-sync %s",
                 enableVsync ? "enabled" : "disabled");
+
+    if (enableUltraLowLatency) {
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
+                    "Ultra low latency decoding requested");
+    }
 
 #ifdef HAVE_SLVIDEO
     chosenDecoder = new SLVideoDecoder(testOnly);
@@ -2215,7 +2225,8 @@ void Session::exec()
                                    enableVsync,
                                    enableVsync && m_Preferences->framePacing,
                                    false,
-                                   s_ActiveSession->m_VideoDecoder)) {
+                                   s_ActiveSession->m_VideoDecoder,
+                                   m_Preferences->ultraLowLatency)) {
                     SDL_UnlockMutex(m_DecoderLock);
                     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                                  "Failed to recreate decoder after reset");
