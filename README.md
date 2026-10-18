@@ -1,135 +1,252 @@
 # Moonlight Armada
 
-Moonlight with ultra low latency options for Snapdragon devices running ArmadaOS, and UI tweaks.
+[![ArmadaOS AppImage](https://img.shields.io/github/actions/workflow/status/drluciano/moonlight-armada/build-armada-appimage.yml?branch=main&label=ArmadaOS%20AppImage)](https://github.com/drluciano/moonlight-armada/actions/workflows/build-armada-appimage.yml)
+[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 
-This is a fork of [moonlight-qt](https://github.com/moonlight-stream/moonlight-qt) with features ported from [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android).
+**Moonlight Armada** is a game streaming client for Snapdragon handhelds running [ArmadaOS](#about-armadaos). It is built on [moonlight-qt](https://github.com/moonlight-stream/moonlight-qt) and adds an **ultra low latency decoding mode** for Qualcomm's hardware video decoders, a **modernized interface**, and **one-file AppImage builds** made for ArmadaOS.
+
+The ultra low latency mode is a Linux port of the Snapdragon low latency work in [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android). On an AYN Odin running ArmadaOS, it brought H.264 decode time down from **6–10 ms to about 0.7 ms per frame**.
+
+![The Computers screen in Moonlight Armada](docs/screenshots/computers.png)
+
+## Contents
+
+- [Highlights](#highlights)
+- [Screenshots](#screenshots)
+- [Installing on ArmadaOS](#installing-on-armadaos)
+- [Using ultra low latency mode](#using-ultra-low-latency-mode)
+- [How ultra low latency mode works](#how-ultra-low-latency-mode-works)
+- [The Iris kernel patch](#the-iris-kernel-patch)
+- [The new interface](#the-new-interface)
+- [Building from source](#building-from-source)
+- [How the AppImage is packaged](#how-the-appimage-is-packaged)
+- [Troubleshooting](#troubleshooting)
+- [Roadmap](#roadmap)
+- [What changed from moonlight-qt](#what-changed-from-moonlight-qt)
+- [Credits and license](#credits-and-license)
+
+## Highlights
+
+- **Ultra low latency decoding.** One switch tunes the whole decode path for Snapdragon's V4L2 hardware decoders (Venus and Iris). It asks the decoder to return frames as soon as they are decoded, enables any vendor low latency controls the driver exposes, turns off frame pacing, and runs the decoder thread at real-time priority.
+- **Works on today's ArmadaOS kernel.** Mainline Iris doesn't yet expose the decode order control, so Moonlight Armada detects that and prefers H.264, which outputs frames immediately without it. A [kernel patch](contrib/kernel/) is included for the ArmadaOS team to add the control.
+- **Honest diagnostics.** The performance overlay shows exactly what ultra low latency mode could enable on your hardware.
+- **Modernized interface.** A new dark theme, card-based layout, status chips, and a cleaner toolbar and settings page, designed for handheld screens and gamepad navigation.
+- **One-file install.** Each build is a single aarch64 AppImage that runs on ArmadaOS without installing anything, and can be added to Steam for Game Mode.
+- **Automated builds.** GitHub Actions builds, smoke-tests and publishes the AppImage on every change.
+
+## Screenshots
+
+These were taken with three example computers saved and no host running, so they show as Offline.
+
+| Computers | Settings |
+|---|---|
+| ![Computers screen with host cards and status chips](docs/screenshots/computers.png) | ![Settings with the new Latency card and ultra low latency enabled](docs/screenshots/settings.png) |
+
+### Before and after
+
+Stock moonlight-qt 6.2.0 (left) next to Moonlight Armada (right), with the same saved computers and settings:
+
+| Stock moonlight-qt | Moonlight Armada |
+|---|---|
+| ![Stock moonlight-qt Computers screen](docs/screenshots/stock-computers.png) | ![Moonlight Armada Computers screen](docs/screenshots/computers.png) |
+| ![Stock moonlight-qt Settings screen](docs/screenshots/stock-settings.png) | ![Moonlight Armada Settings screen](docs/screenshots/settings.png) |
 
 ## Installing on ArmadaOS
 
-1. Download the latest `Moonlight-Armada-*-aarch64.AppImage` from [Releases](https://github.com/drluciano/moonlight-armada/releases), or from the artifacts of the latest [ArmadaOS AppImage build](https://github.com/drluciano/moonlight-armada/actions/workflows/build-armada-appimage.yml).
-2. In Desktop Mode, make it executable (`chmod +x Moonlight-Armada-*-aarch64.AppImage`) and run it.
-3. To launch it from Game Mode, add it in Steam as a Non-Steam Game.
-4. Turn on **Settings → Latency → Ultra low latency**.
+1. Download the latest `Moonlight-Armada-*-aarch64.AppImage`:
+   - From [Releases](https://github.com/drluciano/moonlight-armada/releases) for tagged versions, or
+   - From the **Artifacts** section of the latest [ArmadaOS AppImage build](https://github.com/drluciano/moonlight-armada/actions/workflows/build-armada-appimage.yml). GitHub wraps artifacts in a zip, so unzip it first.
+2. Switch to Desktop Mode, open a terminal in the download folder, and make it executable:
+   ```sh
+   chmod +x Moonlight-Armada-*-aarch64.AppImage
+   ```
+3. Run it by double-clicking it or from the terminal:
+   ```sh
+   ./Moonlight-Armada-*-aarch64.AppImage
+   ```
+4. To launch it from Game Mode, open Steam in Desktop Mode, choose **Add a Game → Add a Non-Steam Game**, and pick the AppImage.
+5. Pair with your gaming PC running [Sunshine](https://github.com/LizardByte/Sunshine) (or GeForce Experience), the same as stock Moonlight.
 
-Each run is logged to `~/.cache/moonlight-armada/last-run.log`.
+If your system can't mount AppImages (no FUSE), run it with `--appimage-extract-and-run`.
 
-Pushing a `v*` tag builds the AppImage and publishes it as a GitHub release. To package locally, build with qmake and run `scripts/build-appimage-armada.sh <build dir> <output AppImage>`.
+## Using ultra low latency mode
 
-The upstream README follows.
+1. Open **Settings**. The **Latency** card is at the top.
+2. Turn on **Ultra low latency decoding (experimental)**.
+3. Optionally, turn on **Show performance stats while streaming** to see what was enabled.
+4. Start a stream.
 
----
+Turning on ultra low latency mode also turns off and greys out **frame pacing**, since frame pacing deliberately holds frames back to smooth delivery.
 
-# Moonlight PC
+From the command line, use `--ultra-low-latency` or `--no-ultra-low-latency` with `moonlight stream`.
 
-[Moonlight PC](https://moonlight-stream.org) is an open source PC client for NVIDIA GameStream and [Sunshine](https://github.com/LizardByte/Sunshine).
+### Reading the performance overlay
 
-Moonlight also has mobile versions for [Android](https://github.com/moonlight-stream/moonlight-android) and [iOS](https://github.com/moonlight-stream/moonlight-ios).
+The overlay gains an **Ultra low latency** line that says what took effect:
 
-You can follow development on our [Discord server](https://moonlight-stream.org/discord) and help translate Moonlight into your language on [Weblate](https://hosted.weblate.org/projects/moonlight/moonlight-qt/).
+| Overlay text | Meaning |
+|---|---|
+| `active, Decode order output (qcom-venus)` | The decoder was switched to decode order output (and any vendor low latency controls listed). This is the full mode. |
+| `active, H.264 fast path (iris_driver)` | The decoder has no decode order control (mainline Iris today), but the stream is H.264, which already outputs frames immediately. Still the full benefit. |
+| `partial, iris_driver lacks decode order control` | HEVC or AV1 on a decoder without the control. Pacing and thread priority still apply, but the decoder may hold frames. Use H.264 or apply the [kernel patch](#the-iris-kernel-patch). |
+| `active (generic)` | A non-V4L2 decoder (for example VA-API or software). Only the generic tuning applies. |
 
- [![Build](https://img.shields.io/github/actions/workflow/status/moonlight-stream/moonlight-qt/build.yml?branch=master)](https://github.com/moonlight-stream/moonlight-qt/actions/workflows/build.yml?query=branch%3Amaster)
- [![Downloads](https://img.shields.io/github/downloads/moonlight-stream/moonlight-qt/total)](https://github.com/moonlight-stream/moonlight-qt/releases)
- [![Translation Status](https://hosted.weblate.org/widgets/moonlight/-/moonlight-qt/svg-badge.svg)](https://hosted.weblate.org/projects/moonlight/moonlight-qt/)
+The **average decoding time** line is the number to watch. On an AYN Odin with mainline Iris, it dropped from 6–10 ms to about 0.7 ms with ultra low latency mode on. Keep in mind that this is decode time only. Network and display time are added on top of it.
 
-## Features
- - Hardware accelerated video decoding on Windows, Mac, and Linux
- - H.264, HEVC, and AV1 codec support (AV1 requires Sunshine and a supported host GPU)
- - YUV 4:4:4 support (Sunshine only)
- - HDR streaming support
- - 7.1 surround sound audio support
- - 10-point multitouch support (Sunshine only)
- - Gamepad support with force feedback and motion controls for up to 16 players
- - Support for both pointer capture (for games) and direct mouse control (for remote desktop)
- - Support for passing system-wide keyboard shortcuts like Alt+Tab to the host
- 
-## Downloads
-- [Windows, macOS, and Steam Link](https://github.com/moonlight-stream/moonlight-qt/releases)
-- [Snap (for Ubuntu-based Linux distros)](https://snapcraft.io/moonlight)
-- [Flatpak (for other Linux distros)](https://flathub.org/apps/details/com.moonlight_stream.Moonlight)
-- [AppImage](https://github.com/moonlight-stream/moonlight-qt/releases)
-- [Raspberry Pi 4 and 5](https://github.com/moonlight-stream/moonlight-docs/wiki/Installing-Moonlight-Qt-on-Raspberry-Pi-4)
-- [Generic ARM 32-bit and 64-bit Debian packages](https://github.com/moonlight-stream/moonlight-docs/wiki/Installing-Moonlight-Qt-on-ARM%E2%80%90based-Single-Board-Computers) (not for Raspberry Pi)
-- [Experimental RISC-V Debian packages](https://github.com/moonlight-stream/moonlight-docs/wiki/Installing-Moonlight-Qt-on-RISC%E2%80%90V-Single-Board-Computers)
-- [NVIDIA Jetson and Nintendo Switch (Ubuntu L4T)](https://github.com/moonlight-stream/moonlight-docs/wiki/Installing-Moonlight-Qt-on-Linux4Tegra-(L4T)-Ubuntu)
+## How ultra low latency mode works
 
-### Nightly Builds
-- [Downloads](https://nightly.link/moonlight-stream/moonlight-qt/workflows/build/master)
+### From Android to Linux
 
-#### Special Thanks
+On Android, the Snapdragon low latency mode in moonlight-android sets Qualcomm's MediaCodec vendor keys. On Linux, the same hardware is driven through V4L2 stateful (memory-to-memory) decoders, which FFmpeg exposes as `h264_v4l2m2m` and `hevc_v4l2m2m`. Moonlight Armada maps each Android setting to its Linux counterpart:
 
-[![Hosted By: Cloudsmith](https://img.shields.io/badge/OSS%20hosting%20by-cloudsmith-blue?logo=cloudsmith&style=flat-square)](https://cloudsmith.com)
+| Android (MediaCodec) | Linux (V4L2) | What it does |
+|---|---|---|
+| `vendor.qti-ext-dec-picture-order.enable` | `V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE` = 1 with `..._DISPLAY_DELAY` = 0 | Return frames in decode order as soon as they're decoded, instead of holding them for display order |
+| `vendor.qti-ext-dec-low-latency.enable` | Any boolean driver control whose name contains "low latency" or "decode order" | Vendor kernels (such as Qualcomm's downstream `msm_vidc`) expose their low latency switches as private controls |
+| `KEY_PRIORITY` / operating rate | Decoder thread at `SDL_THREAD_PRIORITY_TIME_CRITICAL` | Keep the decode thread from being preempted |
+| (pacing off in the Android client) | Frame pacing disabled | Present each frame as soon as it's ready |
 
-Hosting for Moonlight's Debian and L4T package repositories is graciously provided for free by [Cloudsmith](https://cloudsmith.com).
+Moonlight never sends B-frames, so decode order is the same as display order and this tuning doesn't change the picture.
 
-## Building
+### Setting controls behind FFmpeg's back
 
-### Windows Build Requirements
-* Qt 6.11 SDK or later (earlier versions may work but are not officially supported)
-* [Visual Studio 2026](https://visualstudio.microsoft.com/downloads/) (Community edition is fine)
-* Select **MSVC** option during Qt installation. MinGW is not supported.
-* [7-Zip](https://www.7-zip.org/) (only if building installers for non-development PCs)
-* Graphics Tools (only if running debug builds)
-  * Install "Graphics Tools" in the Optional Features page of the Windows Settings app.
-  * Alternatively, run `dism /online /add-capability /capabilityname:Tools.Graphics.DirectX~~~~0.0.1.0` and reboot.
+FFmpeg doesn't expose V4L2 controls, and V4L2 controls belong to the file handle that opened the decoder. So `app/streaming/video/v4l2lowlatency.cpp`:
 
-### macOS Build Requirements
-* Qt 6.11 SDK or later (earlier versions may work but are not officially supported)
-* Xcode 15 or later (earlier versions may work but are not officially supported)
-* [create-dmg](https://github.com/sindresorhus/create-dmg) (only if building DMGs for use on non-development Macs)
+1. Records the open `/dev/video*` file descriptors (from `/proc/self/fd`) just before `avcodec_open2()`.
+2. After the decoder opens, finds the new descriptor and confirms it's an M2M decoder with `VIDIOC_QUERYCAP`.
+3. Sets the display delay controls, then walks every control on the device (`V4L2_CTRL_FLAG_NEXT_CTRL`) to enable matching vendor low latency toggles.
 
-### Linux/Unix Build Requirements
-* Qt 6 is recommended, but Qt 5.12 or later is also supported (replace `qmake6` with `qmake` when using Qt 5).
-* GCC or Clang
-* FFmpeg 4.0 or later
-* Install the required packages:
-  * Debian/Ubuntu:
-    * Base Requirements: `libegl1-mesa-dev libgl1-mesa-dev libopus-dev libsdl2-dev libsdl2-ttf-dev libssl-dev libavcodec-dev libavformat-dev libswscale-dev libva-dev libvdpau-dev libxkbcommon-dev wayland-protocols libdrm-dev`
-    * Qt 6 (Recommended): `qt6-base-dev qt6-declarative-dev libqt6svg6-dev qt6-wayland qml6-module-qtquick-controls qml6-module-qtquick-templates qml6-module-qtquick-layouts qml6-module-qtqml-workerscript qml6-module-qtquick-window qml6-module-qtquick`
-    * Qt 5: `qtbase5-dev qt5-qmake qtdeclarative5-dev qtquickcontrols2-5-dev qml-module-qtquick-controls2 qml-module-qtquick-layouts qml-module-qtquick-window2 qml-module-qtquick2 qtwayland5`
-  * RedHat/Fedora (RPM Fusion repo required):
-    * Base Requirements: `openssl-devel SDL2-devel SDL2_ttf-devel ffmpeg-devel libva-devel libvdpau-devel opus-devel pulseaudio-libs-devel alsa-lib-devel libdrm-devel`
-    * Qt 6 (Recommended): `qt6-qtsvg-devel qt6-qtdeclarative-devel`
-    * Qt 5: `qt5-qtsvg-devel qt5-qtquickcontrols2-devel`
-* Building the Vulkan renderer requires a `libplacebo-dev`/`libplacebo-devel` version of at least v7.349.0 and FFmpeg 6.1 or later.
+This works because FFmpeg's v4l2m2m wrapper only starts streaming when the first packet arrives, so controls set right after opening still take effect.
 
-### Steam Link Build Requirements
-* [Steam Link SDK](https://github.com/ValveSoftware/steamlink-sdk) cloned on your build system
-* STEAMLINK_SDK_PATH environment variable set to the Steam Link SDK path
+### Mainline Iris and the H.264 fast path
 
-**Steam Link Hardware Limitations**  
-Moonlight builds for Steam Link are subject to hardware limitations of the Steam Link device:
-* Maximum resolution: **1080p (1920x1080)**
-* Maximum framerate: **60 FPS**
-* Maximum video bitrate: **40 Mbps**
-* **HDR streaming is not supported** on the original hardware
+The Snapdragon 8 Gen 2, 8 Gen 3 and 8 Elite use Qualcomm's newer **Iris** video core. The mainline `iris` driver, which reports itself as `iris_driver`, doesn't yet expose the display delay controls, so the decode order switch isn't available on today's ArmadaOS kernel.
 
-### Docker containers
-If you want to use Docker for building, look at [this repo](https://github.com/cgutman/moonlight-packaging) containing canonical containers
-for different architectures, which handle building deps and extra linking for you.
+For H.264, Moonlight already rewrites each stream's SPS to set `max_dec_frame_buffering = 1`, so the decoder outputs every frame immediately anyway. When ultra low latency mode is on, HDR is off, and an Iris decoder without the control is found, Moonlight Armada therefore moves H.264 to the front of the codec list. HEVC needs the kernel patch to get the same behavior.
 
-### Build Setup Steps
-1. Install the latest Qt SDK (and optionally, the Qt Creator IDE) from https://www.qt.io/download
-    * You can install Qt via Homebrew on macOS, but you will need to use `brew install qt --with-debug` to be able to create debug builds of Moonlight.
-    * You may also use your Linux distro's package manager for the Qt SDK as long as the packages are Qt 5.12 or later.
-    * This step is not required for building on Steam Link, because the Steam Link SDK includes Qt 5.14.
-2. Download submodules and dependencies
-    * Run `git submodule update --init --recursive` from within `moonlight-qt/`.
-    * On Windows and macOS, you must also run `setup-deps.ps1` (Windows) or `setup-deps.py` (macOS).
-    * Perform these steps each time you pull new changes from the Git repository.
-3. Open the project in Qt Creator or build from qmake on the command line.
-    * To build a binary for use on non-development machines, use the scripts in the `scripts` folder.
-        * For Windows builds, use `scripts\build-arch.bat` and `scripts\generate-bundle.bat`. Execute these scripts from the root of the repository within a Qt command prompt. Ensure  7-Zip binary directory is on your `%PATH%`.
-        * For macOS builds, use `scripts/generate-dmg.sh`. Execute this script from the root of the repository and ensure Qt's `bin` folder is in your `$PATH`.
-        * For Steam Link builds, run `scripts/build-steamlink-app.sh` from the root of the repository.
-    * To build from the command line for development use on macOS or Linux, run `qmake6 moonlight-qt.pro` then `make debug` or `make release`.
-        * The final binary will be placed in `app/moonlight`.
-    * To create an embedded build for a single-purpose device, use `qmake6 "CONFIG+=embedded" moonlight-qt.pro` and build normally.
-        * This build will lack windowed mode, Discord/Help links, and other features that don't make sense on an embedded device.
-        * For platforms with poor GPU performance, add `"CONFIG+=gpuslow"` to prefer direct KMSDRM rendering over GL/Vulkan renderers. Direct KMSDRM rendering can use dedicated YUV/RGB conversion and scaling hardware rather than slower GPU shaders for these operations.
+### What it does per decoder
 
-## Contribute
-1. Fork us
-2. Write code
-3. Send Pull Requests
+| Decoder | H.264 | HEVC |
+|---|---|---|
+| Venus (`qcom-venus`, older Snapdragons) | Full mode | Full mode |
+| Iris, mainline (`iris_driver`) | Full mode via the H.264 fast path (preferred automatically) | Partial |
+| Iris with the [kernel patch](#the-iris-kernel-patch) | Full mode | Full mode |
+| Downstream `msm_vidc` vendor kernels | Full mode, plus vendor low latency controls | Full mode, plus vendor low latency controls |
+| Any other decoder | Generic tuning | Generic tuning |
 
-Check out our [website](https://moonlight-stream.org) for project links and information.
+## The Iris kernel patch
+
+[`contrib/kernel/0001-media-qcom-iris-add-decode-order-output-for-gen2-dec.patch`](contrib/kernel/) adds the standard V4L2 display delay controls to the mainline Iris decoder on gen2 SoCs (SM8550, SM8650, SM8750 and others sharing the `inst_fw_cap_sm8550_dec` table). When display delay is enabled and set to 0, the driver sends `HFI_PROP_DECODE_ORDER_OUTPUT` (`0x0300015b`) to the firmware. That's the same property Qualcomm's downstream `msm_vidc` driver uses for this feature.
+
+With the patch applied, Moonlight Armada sets the controls automatically and HEVC gets the full mode too. No app change is needed.
+
+The patch is compile-tested for arm64 against mainline with `W=1`, but not yet tested on hardware. It's meant for the ArmadaOS kernel maintainers, and it needs a `Signed-off-by` from whoever submits it upstream. See [`contrib/kernel/README.md`](contrib/kernel/README.md).
+
+## The new interface
+
+The interface keeps Moonlight's layout and gamepad navigation but restyles everything:
+
+- **Theme.** `app/gui/Theme.qml` is a singleton design system: a deep blue-black palette (`#0D1017` to `#151A2B`), raised surfaces, a cyan accent (`#4FC3F7`), and shared corner radii, spacing, type sizes and animation timings. Qt's Material style is tinted to match.
+- **Cards.** `Card.qml` and `NavigableItemDelegate.qml` give computers and apps rounded cards with a hover and focus lift and a clear accent focus ring for gamepad and keyboard navigation.
+- **Status chips.** `StatusChip.qml` shows each computer's state at a glance: Checking…, Online, Not paired or Offline. Running apps get a "Running" chip.
+- **Toolbar.** The toolbar is now a flat surface with a hairline divider, the logo, a left-aligned page title, a "Moonlight Armada" caption, and a muted version label.
+- **Settings.** Settings are grouped into rounded `SettingsCard` panels with accent titles, and collapse to a single column under 900 px wide. A new **Latency** card at the top holds the ultra low latency switch.
+- **Dialogs.** Modal dialogs dim the background with a darker scrim.
+
+## Building from source
+
+### Requirements
+
+Moonlight Armada builds the same way as moonlight-qt. On Ubuntu 24.04 (arm64 or x86_64), install:
+
+```sh
+sudo apt install build-essential pkg-config \
+  qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland qt6-qpa-plugins qt6-image-formats-plugins \
+  qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-templates qml6-module-qtquick-layouts \
+  qml6-module-qtquick-window qml6-module-qtquick-dialogs qml6-module-qtqml-workerscript \
+  libsdl2-dev libsdl2-ttf-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
+  libva-dev libvdpau-dev libopus-dev libssl-dev libdrm-dev libegl-dev libgbm-dev libwayland-dev libx11-dev
+```
+
+On Arch or ArmadaOS, install the equivalents: `qt6-base qt6-declarative qt6-svg qt6-wayland sdl2 sdl2_ttf ffmpeg libva libvdpau opus openssl libdrm`.
+
+### Build
+
+```sh
+git clone --recursive https://github.com/drluciano/moonlight-armada.git
+cd moonlight-armada
+mkdir build && cd build
+qmake6 ../moonlight-qt.pro CONFIG+=release
+make -j$(nproc)
+```
+
+The binary is `build/app/moonlight`.
+
+### Package an AppImage
+
+On an arm64 machine, with [appimagetool](https://github.com/AppImage/appimagetool) on your `PATH`:
+
+```sh
+scripts/build-appimage-armada.sh build out/Moonlight-Armada-aarch64.AppImage
+```
+
+The script also works for cross-builds from x86_64 using Ubuntu's multiarch arm64 packages. In that case, set `CROSS=aarch64-linux-gnu-`.
+
+### Continuous integration and releases
+
+[`.github/workflows/build-armada-appimage.yml`](.github/workflows/build-armada-appimage.yml) runs on GitHub's native `ubuntu-24.04-arm` runners:
+
+- **Pull requests and pushes to `main`** build Moonlight, package the AppImage, check that it starts without missing libraries, and upload it as a build artifact.
+- **Tags starting with `v`** (for example `v0.1.0`) also publish the AppImage as a GitHub Release:
+  ```sh
+  git tag v0.1.0 && git push origin v0.1.0
+  ```
+
+## How the AppImage is packaged
+
+ArmadaOS is Arch-based and can be lean, so the AppImage bundles everything except a core set of libraries that every Arch desktop or Steam install provides: glibc and the C++ runtime, Mesa/GL, X11/xcb, Wayland, xkbcommon, glib, harfbuzz, fontconfig/freetype, ALSA, dbus and systemd/udev. These choices came out of on-device testing:
+
+- **OpenSSL is bundled as a matched pair.** Qt loads libssl at runtime, so it never shows up as a link dependency. Pairing the system's libssl with an older bundled libcrypto broke pairing-key generation, so both ship together.
+- **libproxy is replaced by a stub.** The real library pulls in curl, gnutls and p11-kit, which load system plugins at startup and can crash on a mismatched system. The stub ([`app/deploy/linux/armada/libproxy-stub.c`](app/deploy/linux/armada/libproxy-stub.c)) always reports a direct connection.
+- **libva prefers the system copy.** As in upstream's AppImage, VA-API drivers only load with a matching libva, so the bundled libva is only a fallback for systems without one.
+- **Wayland stays on.** Upstream's AppImage disables Wayland because it bundles libwayland-client. This one uses the system's, which matters for Gamescope and KDE.
+- **Every run is logged.** The AppRun writes each run to `~/.cache/moonlight-armada/last-run.log`. If a library is missing, the log lists every missing library in one pass.
+
+## Troubleshooting
+
+- **Nothing happens when I launch it.** Run it from a terminal and check `~/.cache/moonlight-armada/last-run.log`. Missing libraries are listed at the end.
+- **"Ultra low latency: partial".** You're streaming HEVC or AV1 on mainline Iris. Choose H.264 under **Settings → Video codec** (or leave it on Automatic with HDR off), or apply the [kernel patch](#the-iris-kernel-patch).
+- **Software decoding instead of hardware.** Your user needs access to `/dev/video*`. Check with `ls -l /dev/video*`; on most setups the `video` group or the seat's uaccess rule grants it.
+- **Hardware decoder check.** `v4l2-ctl --list-devices` (from `v4l-utils`) should list the Qualcomm decoder, for example `qcom-iris-decoder` on Iris devices.
+- **No title bar in Desktop Mode windows.** The bundled libdecor can't find the system's decoration plugins. This doesn't affect fullscreen or Game Mode.
+
+## Roadmap
+
+- **Zero-copy frames.** Mainline FFmpeg's v4l2m2m decoder returns frames in system memory (NV12), so each frame is copied before display. An FFmpeg build with DRM-PRIME output for V4L2 (as in the Raspberry Pi and LibreELEC forks) would remove that copy.
+- **Upstream the Iris patch** through the ArmadaOS kernel and then mainline Linux, so HEVC gets the full mode everywhere.
+- **Vulkan renderer and HDR** by bundling libplacebo.
+- **Flatpak** for a more integrated install on SteamOS-like systems.
+
+## What changed from moonlight-qt
+
+| Area | Files |
+|---|---|
+| Ultra low latency decoding | `app/streaming/video/v4l2lowlatency.{h,cpp}` (new), `ffmpeg.{h,cpp}`, `decoder.h`, `app/streaming/session.{h,cpp}` |
+| Setting and CLI flag | `app/settings/streamingpreferences.{h,cpp}`, `app/cli/commandlineparser.cpp`, `app/gui/SettingsView.qml` |
+| Interface | `app/gui/Theme.qml`, `Card.qml`, `StatusChip.qml`, `SettingsCard.qml` (new), `main.qml`, `PcView.qml`, `AppView.qml`, `NavigableItemDelegate.qml`, `app/main.cpp` |
+| Kernel patch | `contrib/kernel/` (new) |
+| Packaging and CI | `scripts/build-appimage-armada.sh`, `app/deploy/linux/armada/` (new), `.github/workflows/build-armada-appimage.yml` (replaces upstream's Windows, macOS, Steam Link and x86_64 workflows) |
+
+Everything else is upstream moonlight-qt. For upstream's features, supported platforms and build instructions for other systems, see the [moonlight-qt README](https://github.com/moonlight-stream/moonlight-qt#readme).
+
+## About ArmadaOS
+
+ArmadaOS is an Arch-based (CachyOS-derived), SteamOS-like Linux distribution for ARM handhelds such as the AYN Odin and Thor series. It boots into Steam and Gamescope on Snapdragon hardware, with a separate Desktop Mode.
+
+## Credits and license
+
+- [moonlight-stream/moonlight-qt](https://github.com/moonlight-stream/moonlight-qt) by the Moonlight Game Streaming Project, the base of this project.
+- [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android), whose Snapdragon low latency mode inspired the Linux implementation.
+- Qualcomm's `msm_vidc` video driver (CodeLinaro), which documents the decode order output property used by the kernel patch.
+
+Moonlight Armada is licensed under the [GNU General Public License v3.0](LICENSE), the same as moonlight-qt.
