@@ -2,7 +2,20 @@
 
 Moonlight with ultra low latency options for Snapdragon devices running ArmadaOS, and UI tweaks.
 
-This is a fork of [moonlight-qt](https://github.com/moonlight-stream/moonlight-qt) with features ported from [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android). The upstream README follows.
+This is a fork of [moonlight-qt](https://github.com/moonlight-stream/moonlight-qt) with features ported from [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android).
+
+## Installing on ArmadaOS
+
+1. Download the latest `Moonlight-Armada-*-aarch64.AppImage` from [Releases](https://github.com/drluciano/moonlight-armada/releases), or from the artifacts of the latest [ArmadaOS AppImage build](https://github.com/drluciano/moonlight-armada/actions/workflows/build-armada-appimage.yml).
+2. In Desktop Mode, make it executable (`chmod +x Moonlight-Armada-*-aarch64.AppImage`) and run it.
+3. To launch it from Game Mode, add it in Steam as a Non-Steam Game.
+4. Turn on **Settings → Latency → Ultra low latency**.
+
+Each run is logged to `~/.cache/moonlight-armada/last-run.log`.
+
+Pushing a `v*` tag builds the AppImage and publishes it as a GitHub release. To package locally, build with qmake and run `scripts/build-appimage-armada.sh <build dir> <output AppImage>`.
+
+The upstream README follows.
 
 ---
 

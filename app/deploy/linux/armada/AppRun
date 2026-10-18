@@ -1,0 +1,29 @@
+#!/bin/sh
+HERE="$(dirname "$(readlink -f "$0")")"
+export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export QT_PLUGIN_PATH="$HERE/usr/plugins"
+export QML_IMPORT_PATH="$HERE/usr/qml"
+export QML2_IMPORT_PATH="$HERE/usr/qml"
+
+# Prefer the host libva (it must match the host's VA drivers); fall back to ours if absent
+if ! ldconfig -p 2>/dev/null | grep -q 'libva\.so\.2 '; then
+  export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$HERE/opt/libva-fallback"
+fi
+
+# Keep a log of every run, including dynamic loader failures
+LOGDIR="${XDG_CACHE_HOME:-$HOME/.cache}/moonlight-armada"
+mkdir -p "$LOGDIR" 2>/dev/null
+LOG="$LOGDIR/last-run.log"
+{
+  echo "=== $(date) ==="
+  echo "XDG_SESSION_TYPE=$XDG_SESSION_TYPE WAYLAND_DISPLAY=$WAYLAND_DISPLAY DISPLAY=$DISPLAY"
+  "$HERE/usr/bin/moonlight" "$@" 2>&1
+  rc=$?
+  echo "=== exit code $rc ==="
+  if [ $rc -eq 127 ]; then
+    echo "Missing libraries:"
+    for f in "$HERE/usr/bin/moonlight" $(find "$HERE/usr" -name '*.so*' -type f); do
+      ldd "$f" 2>/dev/null | grep "not found" | sed "s|^|  $(basename "$f"): |"
+    done | sort -u
+  fi
+} | tee "$LOG"
