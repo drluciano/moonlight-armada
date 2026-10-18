@@ -210,7 +210,9 @@ bool V4L2LowLatency::hasQualcommDecoderWithoutDecodeOrderOutput()
 
         QString driverName;
         bool result = false;
-        if (isM2MDecoder(fd, driverName) && driverName.startsWith("qcom")) {
+        // Venus reports "qcom-venus" while Iris reports "iris_driver"
+        if (isM2MDecoder(fd, driverName) &&
+                (driverName.startsWith("qcom") || driverName.contains("iris"))) {
             // Make sure this is the decoder rather than the encoder node by
             // looking for compressed formats on the OUTPUT (bitstream) queue
             bool isDecoder = false;
