@@ -18,20 +18,37 @@ install_app()
   sed -e "s|^Exec=.*|Exec=$DEST/AppRun %U|" -e "s|^Icon=.*|Icon=$DEST/moonlight.svg|" \
     -e "/^TryExec=/d" "$HERE/moonlight.desktop" > "$APPS/moonlight-armada.desktop"
 
-  # Add a non-Steam game shortcut for every Steam account on this device. Steam
-  # picks it up the next time it starts, such as when switching to Game Mode.
-  added=""
+  # Add a non-Steam game shortcut for every Steam account on this device
+  vdfs=""
   for u in "$HOME/.local/share/Steam/userdata"/* "$HOME/.steam/steam/userdata"/*; do
     [ -d "$u" ] || continue
     u="$(readlink -f "$u")"
     case " $seen " in *" $u "*) continue ;; esac
     seen="$seen $u"
     [ "$(basename "$u")" = 0 ] && continue
-    mkdir -p "$u/config"
     vdf="$u/config/shortcuts.vdf"
+    grep -qaF "\"$DEST/AppRun\"" "$vdf" 2>/dev/null || vdfs="$vdfs $vdf"
+  done
+
+  # Steam keeps its shortcut list in memory and writes it back on exit, so it
+  # has to be closed while we edit the file. It's restarted afterwards.
+  restart_steam=""
+  if [ -n "$vdfs" ] && [ -z "$SteamGameId" ] && pgrep -x steam >/dev/null 2>&1; then
+    steam -shutdown >/dev/null 2>&1
+    i=0
+    while pgrep -x steam >/dev/null 2>&1 && [ $i -lt 30 ]; do sleep 1; i=$((i + 1)); done
+    if pgrep -x steam >/dev/null 2>&1; then vdfs=""; else restart_steam=1; fi
+  elif [ -n "$SteamGameId" ]; then
+    vdfs=""
+  fi
+
+  added=""
+  for vdf in $vdfs; do
+    mkdir -p "$(dirname "$vdf")"
     [ -f "$vdf" ] && [ ! -f "$vdf.armada-backup" ] && cp "$vdf" "$vdf.armada-backup"
     "$DEST/usr/bin/steam-shortcut" "$vdf" "Moonlight Armada" "$DEST/AppRun" "$DEST" "$DEST/moonlight.svg" && added=1
   done
+  [ -n "$restart_steam" ] && (setsid steam >/dev/null 2>&1 &)
 
   msg="Moonlight Armada is installed."
   [ -n "$added" ] && msg="Moonlight Armada was added to Steam. It will appear in your library in Game Mode."

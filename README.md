@@ -75,7 +75,7 @@ Open the AppImage once in Desktop Mode (if double-clicking does nothing, right-c
 
 - it copies the app to `~/.local/share/moonlight-armada`, so Steam launches a normal installed app rather than the AppImage,
 - it adds **Moonlight Armada** to the app menu,
-- and it adds **Moonlight Armada** to Steam as a non-Steam game for every Steam account on the device. Steam shows it after it restarts, which happens when you switch to Game Mode. A backup of Steam's shortcut list is kept next to it as `shortcuts.vdf.armada-backup`.
+- and it adds **Moonlight Armada** to Steam as a non-Steam game for every Steam account on the device. If Steam is open, it closes Steam while it does this and reopens it afterwards, because Steam would otherwise overwrite the change. A backup of Steam's shortcut list is kept next to it as `shortcuts.vdf.armada-backup`.
 
 To update, open a newer AppImage once the same way. If the Steam entry is missing, use **Add a Non-Steam Game** in Desktop Mode and tick **Moonlight Armada**.
 
