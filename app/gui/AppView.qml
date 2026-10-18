@@ -145,7 +145,8 @@ CenteredGridView {
                     ToolTip.timeout: 3000
                     ToolTip.visible: hovered
 
-                    Material.background: "#D0808080"
+                    Material.background: Theme.surfaceRaised
+                    Material.foreground: Theme.textPrimary
                 }
 
                 RoundButton {
@@ -171,7 +172,8 @@ CenteredGridView {
                     ToolTip.timeout: 3000
                     ToolTip.visible: hovered
 
-                    Material.background: "#D0808080"
+                    Material.background: Theme.surfaceRaised
+                    Material.foreground: Theme.textPrimary
                 }
             }
         }
@@ -193,7 +195,9 @@ CenteredGridView {
             sourceComponent: Label {
                 id: appNameText
                 text: model.name
-                font.pointSize: 22
+                font.pointSize: 20
+                font.bold: true
+                color: Theme.textPrimary
                 leftPadding: 20
                 rightPadding: 20
                 verticalAlignment: Text.AlignVCenter
@@ -201,6 +205,15 @@ CenteredGridView {
                 wrapMode: Text.Wrap
                 elide: Text.ElideRight
             }
+        }
+
+        StatusChip {
+            visible: model.running
+            anchors.bottom: appIcon.bottom
+            anchors.bottomMargin: Theme.spacingSmall
+            anchors.horizontalCenter: appIcon.horizontalCenter
+            text: qsTr("Running")
+            dotColor: Theme.success
         }
 
         function launchOrResumeSelectedApp(quitExistingApp)
@@ -339,7 +352,8 @@ CenteredGridView {
 
         Label {
             text: qsTr("This computer doesn't seem to have any applications or some applications are hidden")
-            font.pointSize: 20
+            font.pointSize: Theme.fontHeading + 3
+            color: Theme.textSecondary
             verticalAlignment: Text.AlignVCenter
             wrapMode: Text.Wrap
         }

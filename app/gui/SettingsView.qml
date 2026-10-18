@@ -16,8 +16,12 @@ Flickable {
 
     boundsBehavior: Flickable.OvershootBounds
 
-    contentWidth: settingsColumn1.width > settingsColumn2.width ? settingsColumn1.width : settingsColumn2.width
-    contentHeight: settingsColumn1.height > settingsColumn2.height ? settingsColumn1.height : settingsColumn2.height
+    // Stack the two settings columns on narrow screens (handhelds, small windows)
+    property bool singleColumn: width < 900
+
+    contentWidth: width
+    contentHeight: singleColumn ? (settingsColumn2.y + settingsColumn2.height) :
+                                  Math.max(settingsColumn1.height, settingsColumn2.height)
 
     ScrollBar.vertical: ScrollBar {
         anchors {
@@ -94,16 +98,54 @@ Flickable {
     }
 
     Column {
-        padding: 10
+        padding: Theme.spacingLarge
+        rightPadding: settingsPage.singleColumn ? Theme.spacingLarge : Theme.spacingMedium
         id: settingsColumn1
-        width: settingsPage.width / 2
-        spacing: 15
+        width: settingsPage.singleColumn ? settingsPage.width : settingsPage.width / 2
+        spacing: Theme.spacingLarge
 
-        GroupBox {
+        SettingsCard {
+            id: latencySettingsGroupBox
+            width: (parent.width - (parent.leftPadding + parent.rightPadding))
+            title: qsTr("Latency")
+            font.pointSize: 12
+
+            Column {
+                anchors.fill: parent
+                spacing: 5
+
+                CheckBox {
+                    id: ultraLowLatencyCheck
+                    width: parent.width
+                    hoverEnabled: true
+                    text: qsTr("Ultra low latency decoding (experimental)")
+                    font.pointSize: 12
+                    checked: StreamingPreferences.ultraLowLatency
+                    onCheckedChanged: {
+                        StreamingPreferences.ultraLowLatency = checked
+                    }
+
+                    ToolTip.delay: 1000
+                    ToolTip.timeout: 8000
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Asks the hardware decoder to output each frame as soon as it is decoded and gives decoding real-time priority. Frame pacing is turned off while this is enabled.")
+                }
+
+                Label {
+                    width: parent.width
+                    leftPadding: ultraLowLatencyCheck.indicator ? ultraLowLatencyCheck.indicator.width + ultraLowLatencyCheck.spacing : 0
+                    text: qsTr("Built for Snapdragon handhelds (8 Gen 2, 8 Gen 3, 8 Elite) running ArmadaOS. On other hardware only the generic optimizations apply. Check the performance overlay to see what was enabled.")
+                    font.pointSize: Theme.fontCaption
+                    color: Theme.textSecondary
+                    wrapMode: Text.Wrap
+                }
+            }
+        }
+
+        SettingsCard {
             id: basicSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
-            padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("Basic Settings") + "</font>"
+            title: qsTr("Basic Settings")
             font.pointSize: 12
 
             Column {
@@ -837,7 +879,7 @@ Flickable {
                         hoverEnabled: true
                         text: qsTr("Frame pacing")
                         font.pointSize:  12
-                        enabled: StreamingPreferences.enableVsync
+                        enabled: StreamingPreferences.enableVsync && !StreamingPreferences.ultraLowLatency
                         checked: StreamingPreferences.enableVsync && StreamingPreferences.framePacing
                         onCheckedChanged: {
                             StreamingPreferences.framePacing = checked
@@ -874,12 +916,11 @@ Flickable {
             }
         }
 
-        GroupBox {
+        SettingsCard {
 
             id: audioSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
-            padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("Audio Settings") + "</font>"
+            title: qsTr("Audio Settings")
             font.pointSize: 12
 
             Column {
@@ -968,11 +1009,10 @@ Flickable {
             }
         }
 
-        GroupBox {
+        SettingsCard {
             id: hostSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
-            padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("Host Settings") + "</font>"
+            title: qsTr("Host Settings")
             font.pointSize: 12
 
             Column {
@@ -1008,11 +1048,10 @@ Flickable {
             }
         }
 
-        GroupBox {
+        SettingsCard {
             id: uiSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
-            padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("UI Settings") + "</font>"
+            title: qsTr("UI Settings")
             font.pointSize: 12
 
             Column {
@@ -1310,18 +1349,19 @@ Flickable {
     }
 
     Column {
-        padding: 10
-        rightPadding: 20
-        anchors.left: settingsColumn1.right
+        padding: Theme.spacingLarge
+        leftPadding: settingsPage.singleColumn ? Theme.spacingLarge : Theme.spacingMedium
+        rightPadding: Theme.spacingLarge + 10
+        x: settingsPage.singleColumn ? 0 : settingsColumn1.width
+        y: settingsPage.singleColumn ? settingsColumn1.height - Theme.spacingLarge : 0
         id: settingsColumn2
-        width: settingsPage.width / 2
-        spacing: 15
+        width: settingsPage.singleColumn ? settingsPage.width : settingsPage.width / 2
+        spacing: Theme.spacingLarge
 
-        GroupBox {
+        SettingsCard {
             id: inputSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
-            padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("Input Settings") + "</font>"
+            title: qsTr("Input Settings")
             font.pointSize: 12
 
             Column {
@@ -1465,11 +1505,10 @@ Flickable {
             }
         }
 
-        GroupBox {
+        SettingsCard {
             id: gamepadSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
-            padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("Gamepad Settings") + "</font>"
+            title: qsTr("Gamepad Settings")
             font.pointSize: 12
 
             Column {
@@ -1540,11 +1579,10 @@ Flickable {
             }
         }
 
-        GroupBox {
+        SettingsCard {
             id: advancedSettingsGroupBox
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
-            padding: 12
-            title: "<font color=\"skyblue\">" + qsTr("Advanced Settings") + "</font>"
+            title: qsTr("Advanced Settings")
             font.pointSize: 12
 
             Column {

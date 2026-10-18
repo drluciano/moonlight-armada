@@ -1,5 +1,5 @@
 import QtQuick 2.9
-import QtQuick.Controls 2.2
+import QtQuick.Controls 2.5
 import QtQuick.Layouts 1.3
 import QtQuick.Window 2.2
 import QtQuick.Controls.Material 2.2
@@ -24,14 +24,28 @@ ApplicationWindow {
 
     // This function runs prior to creation of the initial StackView item
     function doEarlyInit() {
-        // Override the background color to Material 2 colors for Qt 6.5+
-        // in order to improve contrast between GFE's placeholder box art
-        // and the background of the app grid.
-        if (SystemProperties.usesMaterial3Theme) {
-            Material.background = "#303030"
-        }
+        // Use our own surface colors instead of the stock Material palette
+        // (this also keeps contrast with GFE's placeholder box art on Qt 6.5+).
+        Material.background = Theme.background
+        Material.foreground = Theme.textPrimary
 
         SdlGamepadKeyNavigation.enable()
+    }
+
+    // Dim the content behind dialogs instead of washing it out
+    Overlay.modal: Rectangle {
+        color: "#B3050709"
+    }
+
+    Overlay.modeless: Rectangle {
+        color: "#66050709"
+    }
+
+    background: Rectangle {
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Theme.background }
+            GradientStop { position: 1.0; color: Theme.backgroundGradientEnd }
+        }
     }
 
     Component.onCompleted: {
@@ -235,25 +249,34 @@ ApplicationWindow {
 
     header: ToolBar {
         id: toolBar
-        height: 60
+        height: 64
         anchors.topMargin: 5
         anchors.bottomMargin: 5
 
+        background: Rectangle {
+            color: Theme.surface
+
+            // Hairline divider between the toolbar and the content
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: 1
+                color: Theme.outline
+            }
+        }
+
+        // Kept for layout compatibility; the title is now shown left-aligned
+        // in the row below so it never collides with the toolbar buttons.
         Label {
             id: titleLabel
-            visible: toolBar.width > 700
-            anchors.fill: parent
-            text: stackView.currentItem.objectName
-            font.pointSize: 20
-            elide: Label.ElideRight
-            horizontalAlignment: Qt.AlignHCenter
-            verticalAlignment: Qt.AlignVCenter
+            visible: false
         }
 
         RowLayout {
-            spacing: 10
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
+            spacing: Theme.spacingSmall
+            anchors.leftMargin: Theme.spacingLarge
+            anchors.rightMargin: Theme.spacingMedium
             anchors.fill: parent
 
             NavigableToolButton {
@@ -269,27 +292,48 @@ ApplicationWindow {
                 }
             }
 
-            // This label will appear when the window gets too small and
-            // we need to ensure the toolbar controls don't collide
-            Label {
-                id: titleRowLabel
-                font.pointSize: titleLabel.font.pointSize
-                elide: Label.ElideRight
-                horizontalAlignment: Qt.AlignHCenter
-                verticalAlignment: Qt.AlignVCenter
+            // Brand mark, shown on the top-level page
+            Image {
+                visible: stackView.depth <= 1
+                source: "qrc:/res/moonlight.svg"
+                sourceSize.width: 36
+                sourceSize.height: 36
+                Layout.preferredWidth: 36
+                Layout.preferredHeight: 36
+                Layout.rightMargin: Theme.spacingSmall
+            }
+
+            ColumnLayout {
+                spacing: 0
                 Layout.fillWidth: true
 
-                // We need this label to always be visible so it can occupy
-                // the remaining space in the RowLayout. To "hide" it, we
-                // just set the text to empty string.
-                text: !titleLabel.visible ? stackView.currentItem.objectName : ""
+                Label {
+                    id: titleRowLabel
+                    text: stackView.currentItem ? stackView.currentItem.objectName : ""
+                    font.pointSize: Theme.fontTitle
+                    font.bold: true
+                    color: Theme.textPrimary
+                    elide: Label.ElideRight
+                    verticalAlignment: Qt.AlignVCenter
+                    Layout.fillWidth: true
+                }
+
+                Label {
+                    visible: stackView.depth <= 1
+                    text: "Moonlight Armada"
+                    font.pointSize: Theme.fontCaption
+                    font.letterSpacing: 1.5
+                    color: Theme.accent
+                    Layout.fillWidth: true
+                }
             }
 
             Label {
                 id: versionLabel
                 visible: stackView.currentItem instanceof SettingsView
                 text: qsTr("Version %1").arg(SystemProperties.versionString)
-                font.pointSize: 12
+                font.pointSize: Theme.fontBody
+                color: Theme.textMuted
                 horizontalAlignment: Qt.AlignRight
                 verticalAlignment: Qt.AlignVCenter
             }

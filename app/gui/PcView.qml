@@ -98,7 +98,8 @@ CenteredGridView {
             elide: Label.ElideRight
             text: StreamingPreferences.enableMdns ? qsTr("Searching for compatible hosts on your local network...")
                                                   : qsTr("Automatic PC discovery is disabled. Add your PC manually.")
-            font.pointSize: 20
+            font.pointSize: Theme.fontHeading + 3
+            color: Theme.textSecondary
             verticalAlignment: Text.AlignVCenter
             wrapMode: Text.Wrap
         }
@@ -112,52 +113,83 @@ CenteredGridView {
 
         property alias pcContextMenu : pcContextMenuLoader.item
 
-        Image {
-            id: pcIcon
+        Rectangle {
+            id: pcIconBadge
             anchors.horizontalCenter: parent.horizontalCenter
-            source: "qrc:/res/desktop_windows-48px.svg"
-            sourceSize {
-                width: 200
-                height: 200
-            }
-        }
+            y: 24
+            width: 180
+            height: 180
+            radius: width / 2
+            color: Theme.accentSoft
+            opacity: model.online ? 1.0 : 0.6
 
-        Image {
-            // TODO: Tooltip
-            id: stateIcon
-            anchors.horizontalCenter: pcIcon.horizontalCenter
-            anchors.verticalCenter: pcIcon.verticalCenter
-            anchors.verticalCenterOffset: !model.online ? -18 : -16
-            visible: !model.statusUnknown && (!model.online || !model.paired)
-            source: !model.online ? "qrc:/res/warning_FILL1_wght300_GRAD200_opsz24.svg" : "qrc:/res/baseline-lock-24px.svg"
-            sourceSize {
-                width: !model.online ? 75 : 70
-                height: !model.online ? 75 : 70
+            Image {
+                id: pcIcon
+                anchors.centerIn: parent
+                source: "qrc:/res/desktop_windows-48px.svg"
+                sourceSize {
+                    width: 130
+                    height: 130
+                }
             }
-        }
 
-        BusyIndicator {
-            id: statusUnknownSpinner
-            anchors.horizontalCenter: pcIcon.horizontalCenter
-            anchors.verticalCenter: pcIcon.verticalCenter
-            anchors.verticalCenterOffset: -15
-            width: 75
-            height: 75
-            visible: model.statusUnknown
-            running: visible
+            Image {
+                // TODO: Tooltip
+                id: stateIcon
+                anchors.horizontalCenter: pcIcon.horizontalCenter
+                anchors.verticalCenter: pcIcon.verticalCenter
+                anchors.verticalCenterOffset: -11
+                visible: !model.statusUnknown && (!model.online || !model.paired)
+                source: !model.online ? "qrc:/res/warning_FILL1_wght300_GRAD200_opsz24.svg" : "qrc:/res/baseline-lock-24px.svg"
+                sourceSize {
+                    width: 48
+                    height: 48
+                }
+            }
+
+            BusyIndicator {
+                id: statusUnknownSpinner
+                anchors.horizontalCenter: pcIcon.horizontalCenter
+                anchors.verticalCenter: pcIcon.verticalCenter
+                anchors.verticalCenterOffset: -11
+                width: 56
+                height: 56
+                visible: model.statusUnknown
+                running: visible
+            }
         }
 
         Label {
             id: pcNameText
             text: model.name
 
-            width: parent.width
-            anchors.top: pcIcon.bottom
-            anchors.bottom: parent.bottom
-            font.pointSize: 36
+            anchors.top: pcIconBadge.bottom
+            anchors.topMargin: Theme.spacingMedium
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: Theme.spacingLarge
+            anchors.rightMargin: Theme.spacingLarge
+            font.pointSize: Theme.fontTitle
+            font.bold: true
+            color: Theme.textPrimary
             horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.Wrap
+            maximumLineCount: 1
             elide: Text.ElideRight
+        }
+
+        StatusChip {
+            anchors.top: pcNameText.bottom
+            anchors.topMargin: Theme.spacingSmall
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            text: model.statusUnknown ? qsTr("Checking...") :
+                  !model.online ? qsTr("Offline") :
+                  !model.paired ? qsTr("Not paired") :
+                                  qsTr("Online")
+            dotColor: model.statusUnknown ? Theme.textMuted :
+                      !model.online ? Theme.danger :
+                      !model.paired ? Theme.warning :
+                                      Theme.success
         }
 
         Loader {

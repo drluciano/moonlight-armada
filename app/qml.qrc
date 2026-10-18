@@ -19,5 +19,10 @@
         <file>gui/NavigableDialog.qml</file>
         <file>gui/CenteredGridView.qml</file>
         <file>gui/CliPair.qml</file>
+        <file>gui/qmldir</file>
+        <file>gui/Theme.qml</file>
+        <file>gui/Card.qml</file>
+        <file>gui/StatusChip.qml</file>
+        <file>gui/SettingsCard.qml</file>
     </qresource>
 </RCC>
