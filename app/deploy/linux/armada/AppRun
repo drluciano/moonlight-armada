@@ -6,6 +6,19 @@ unset LD_PRELOAD LD_LIBRARY_PATH
 
 HERE="$(dirname "$(readlink -f "$0")")"
 
+# "--install" copies the app out of the AppImage into a normal folder and adds a
+# menu entry, so Steam can launch it like any installed app (no AppImage mount).
+if [ "$1" = "--install" ]; then
+  DEST="${XDG_DATA_HOME:-$HOME/.local/share}/moonlight-armada"
+  APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+  rm -rf "$DEST" && mkdir -p "$DEST" "$APPS" && cp -a "$HERE/." "$DEST/" || { echo "Install failed"; exit 1; }
+  sed -e "s|^Exec=.*|Exec=$DEST/AppRun %U|" -e "s|^Icon=.*|Icon=$DEST/moonlight.svg|" \
+    -e "s|^TryExec=.*||" "$HERE/moonlight.desktop" > "$APPS/moonlight-armada.desktop"
+  echo "Installed to $DEST"
+  echo "In Steam (Desktop Mode): Games > Add a Non-Steam Game > Moonlight Armada"
+  exit 0
+fi
+
 LOGDIR="${XDG_CACHE_HOME:-$HOME/.cache}/moonlight-armada"
 mkdir -p "$LOGDIR" 2>/dev/null
 LOG="$LOGDIR/last-run.log"
@@ -17,6 +30,8 @@ LOG="$LOGDIR/last-run.log"
   echo "SteamGameId=$SteamGameId"
   echo "Inherited LD_PRELOAD=$INHERITED_LD_PRELOAD"
   echo "Inherited LD_LIBRARY_PATH=$INHERITED_LD_LIBRARY_PATH"
+  echo "XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP GAMESCOPE_WAYLAND_DISPLAY=$GAMESCOPE_WAYLAND_DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
+  echo "Running from $HERE"
 } > "$LOG" 2>/dev/null
 
 # Steam launches non-Steam games with its own runtime on LD_LIBRARY_PATH and
@@ -26,6 +41,14 @@ export LD_LIBRARY_PATH="$HERE/usr/lib"
 export QT_PLUGIN_PATH="$HERE/usr/plugins"
 export QML_IMPORT_PATH="$HERE/usr/qml"
 export QML2_IMPORT_PATH="$HERE/usr/qml"
+
+# Game Mode runs apps inside gamescope, which only shows X11 windows. If Qt picks
+# Wayland there, the window never appears, so use X11 unless told otherwise.
+if [ -z "$QT_QPA_PLATFORM" ] && [ -n "$DISPLAY" ] && \
+   { [ -n "$GAMESCOPE_WAYLAND_DISPLAY" ] || [ "$XDG_CURRENT_DESKTOP" = gamescope ] || [ -n "$SteamGamepadUI" ]; }; then
+  export QT_QPA_PLATFORM=xcb
+  echo "Game Mode detected, using X11" >> "$LOG" 2>/dev/null
+fi
 
 # Prefer the host libva (it must match the host's VA drivers); fall back to ours if absent
 if ! ldconfig -p 2>/dev/null | grep -q 'libva\.so\.2 '; then

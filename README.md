@@ -71,20 +71,21 @@ If your system can't mount AppImages (no FUSE), run it with `--appimage-extract-
 
 ### Adding it to Game Mode
 
-1. In Desktop Mode, open Steam, choose **Add a Game → Add a Non-Steam Game**, and pick the AppImage.
-2. In the shortcut's **Properties**, set **Launch Options** to:
-   ```
-   APPIMAGE_EXTRACT_AND_RUN=1 %command%
-   ```
-   Steam launches non-Steam games from its own environment, where mounting the AppImage can fail. This makes the AppImage unpack itself to a temporary folder and run from there instead.
-3. If it still doesn't start, unpack it once to a permanent folder and add the launcher to Steam instead of the AppImage:
-   ```sh
-   cd ~/Applications && ./Moonlight-Armada-*-aarch64.AppImage --appimage-extract
-   mv squashfs-root moonlight-armada
-   ```
-   Then add `~/Applications/moonlight-armada/AppRun` as the non-Steam game.
+Install it once from Desktop Mode, so Steam launches a normal installed app instead of the AppImage:
 
-Each launch writes `~/.cache/moonlight-armada/last-run.log`. If launching from Game Mode doesn't create or update that file, the failure happened before Moonlight started, while the AppImage was being mounted.
+```sh
+chmod +x Moonlight-Armada-*-aarch64.AppImage
+./Moonlight-Armada-*-aarch64.AppImage --install
+```
+
+This copies the app to `~/.local/share/moonlight-armada` and adds **Moonlight Armada** to the app menu. Then, still in Desktop Mode, open Steam, choose **Add a Game → Add a Non-Steam Game**, tick **Moonlight Armada**, and click **Add Selected Programs**. To update, run `--install` again from the newer AppImage.
+
+If it still doesn't start:
+
+- In the shortcut's **Properties → Compatibility**, make sure **Force the use of a specific Steam Play compatibility tool** is off. Moonlight is a native Linux app, and Proton can't run it.
+- Check `~/.cache/moonlight-armada/last-run.log`. Every launch writes it, so if it wasn't updated, Steam never reached the launcher.
+
+In Game Mode the launcher runs Moonlight on X11, because gamescope only shows X11 windows. Set `QT_QPA_PLATFORM` in the launch options to override that.
 
 ## Using ultra low latency mode
 
