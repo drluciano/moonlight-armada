@@ -608,19 +608,25 @@ bool FFmpegVideoDecoder::completeInitialization(const AVCodec* decoder, enum AVP
             QString driverName;
             QStringList appliedControls;
             if (V4L2LowLatency::applyToNewDecoders(videoFdsBeforeOpen, driverName, appliedControls)) {
-                m_UltraLowLatencyStatus = QString("%1 (%2)").arg(appliedControls.join(", "), driverName);
-            }
-            else if (!driverName.isEmpty()) {
-                m_UltraLowLatencyStatus = QString("not supported by %1").arg(driverName);
+                m_UltraLowLatencyStatus = QString("active, %1 (%2)").arg(appliedControls.join(", "), driverName);
             }
             else {
-                m_UltraLowLatencyStatus = "not supported";
+                // No decoder controls to set (e.g. mainline Iris), but the rest of the
+                // mode still applies. For H.264 our SPS fixup gets frames output
+                // immediately, so this is still the full low latency path.
+                QString driver = driverName.isEmpty() ? QString("V4L2") : driverName;
+                if (params->videoFormat & VIDEO_FORMAT_MASK_H264) {
+                    m_UltraLowLatencyStatus = QString("active, H.264 fast path (%1)").arg(driver);
+                }
+                else {
+                    m_UltraLowLatencyStatus = QString("partial, %1 lacks decode order control").arg(driver);
+                }
             }
         }
         else {
             // Other decoders only get the generic low latency settings
             // (no frame pacing and a real-time decoder thread).
-            m_UltraLowLatencyStatus = "generic";
+            m_UltraLowLatencyStatus = "active (generic)";
         }
     }
 
