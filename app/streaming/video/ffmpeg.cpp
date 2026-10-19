@@ -958,9 +958,10 @@ void FFmpegVideoDecoder::stringifyVideoStats(VIDEO_STATS& stats, char* output, i
             // Makes it obvious when we've fallen back to software decoding
             ret = snprintf(&output[offset],
                            length - offset,
-                           "Video decoder: %s (%s)\n",
+                           "Video decoder: %s (%s), renderer: %s\n",
                            m_VideoDecoderCtx->codec->name,
-                           isHardwareAccelerated() ? "hardware" : "software");
+                           isHardwareAccelerated() ? "hardware" : "software",
+                           m_FrontendRenderer != nullptr ? m_FrontendRenderer->getRendererName() : "none");
             if (ret < 0 || ret >= length - offset) {
                 SDL_assert(false);
                 return;
