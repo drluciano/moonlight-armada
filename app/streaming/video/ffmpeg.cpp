@@ -237,6 +237,7 @@ FFmpegVideoDecoder::FFmpegVideoDecoder(bool testOnly)
       m_VideoFormat(0),
       m_NeedsSpsFixup(false),
       m_UltraLowLatency(false),
+      m_DecodeStages(0),
       m_TestOnly(testOnly),
       m_CurrentTestMode(TestMode::TestFrameOnly),
       m_DecoderThread(nullptr)
@@ -498,6 +499,7 @@ bool FFmpegVideoDecoder::completeInitialization(const AVCodec* decoder, enum AVP
     m_CurrentTestMode = testMode;
     m_UltraLowLatency = params->enableUltraLowLatency;
     m_UltraLowLatencyStatus.clear();
+    m_DecodeStages = 0;
 
     // Don't bother initializing Pacer if we're not actually going to render
     if (testMode != TestMode::TestFrameOnly) {
@@ -600,6 +602,13 @@ bool FFmpegVideoDecoder::completeInitialization(const AVCodec* decoder, enum AVP
                      "Unable to open decoder for format: %x",
                      params->videoFormat);
         return false;
+    }
+
+    if (strstr(decoder->name, "_v4l2m2m") != nullptr) {
+        // Ultra low latency mode requests decode order output when the driver has it
+        m_DecodeStages = V4L2LowLatency::irisDecodeStages(V4L2LowLatency::probeQualcommDecoder(),
+                                                          params->width, params->height,
+                                                          m_UltraLowLatency);
     }
 
     // Apply ultra low latency tuning before any data is submitted, since
@@ -970,10 +979,30 @@ void FFmpegVideoDecoder::stringifyVideoStats(VIDEO_STATS& stats, char* output, i
             offset += ret;
         }
 
+        if (m_DecodeStages > 0) {
+            // Two stage decoding holds each frame for about one frame interval. If frames
+            // take that long even though we expect one stage, say so.
+            double inDecoderMs = stats.decodedFrames ?
+                        (double)((stats.totalDecodeTimeUs - qMin(stats.totalDecodeQueueTimeUs, stats.totalDecodeTimeUs)) / 1000.0) / stats.decodedFrames : 0;
+            bool framesHeld = m_DecodeStages == 1 && stats.decodedFps > 0 &&
+                    inDecoderMs >= 0.75 * (1000.0 / stats.decodedFps);
+            ret = snprintf(&output[offset],
+                           length - offset,
+                           "Decoder pipeline: %s%s\n",
+                           m_DecodeStages == 1 ? "1 stage" : "2 stages (holds each frame)",
+                           framesHeld ? " (frames still held)" : "");
+            if (ret < 0 || ret >= length - offset) {
+                SDL_assert(false);
+                return;
+            }
+
+            offset += ret;
+        }
+
         if (m_UltraLowLatency) {
             ret = snprintf(&output[offset],
                            length - offset,
-                           "Ultra low latency: %s\n",
+                           "Low latency mode: %s\n",
                            m_UltraLowLatencyStatus.toUtf8().constData());
             if (ret < 0 || ret >= length - offset) {
                 SDL_assert(false);

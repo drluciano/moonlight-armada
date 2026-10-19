@@ -130,6 +130,7 @@ private:
     bool m_NeedsSpsFixup;
     bool m_UltraLowLatency;
     QString m_UltraLowLatencyStatus;
+    int m_DecodeStages; // Iris only, 0 otherwise
     bool m_TestOnly;
     TestMode m_CurrentTestMode;
     SDL_Thread* m_DecoderThread;
