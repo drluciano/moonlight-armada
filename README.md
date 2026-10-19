@@ -1,42 +1,93 @@
 # Moonlight Armada
 
-[![ArmadaOS AppImage](https://img.shields.io/github/actions/workflow/status/drluciano/moonlight-armada/build-armada-appimage.yml?branch=main&label=ArmadaOS%20AppImage)](https://github.com/drluciano/moonlight-armada/actions/workflows/build-armada-appimage.yml)
+[![ArmadaOS Flatpak](https://img.shields.io/github/actions/workflow/status/drluciano/moonlight-armada/build-armada-flatpak.yml?branch=main&label=Flatpak)](https://github.com/drluciano/moonlight-armada/actions/workflows/build-armada-flatpak.yml)
+[![ArmadaOS AppImage](https://img.shields.io/github/actions/workflow/status/drluciano/moonlight-armada/build-armada-appimage.yml?branch=main&label=AppImage)](https://github.com/drluciano/moonlight-armada/actions/workflows/build-armada-appimage.yml)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 
-**Moonlight Armada** is a game streaming client for Snapdragon handhelds running [ArmadaOS](#about-armadaos). It is built on [moonlight-qt](https://github.com/moonlight-stream/moonlight-qt) and adds an **ultra low latency decoding mode** for Qualcomm's hardware video decoders, a **modernized interface**, and **one-file AppImage builds** made for ArmadaOS.
+**Moonlight Armada lets you play games from your gaming PC on a Snapdragon handheld running [ArmadaOS](#about-armadaos), such as the AYN Odin.** Your PC runs the game, and the handheld shows the picture and sends your button presses back over Wi-Fi.
 
-The ultra low latency mode is a Linux port of the Snapdragon low latency work in [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android). On an AYN Odin running ArmadaOS in Desktop Mode, H.264 decodes in **under 1 ms per frame**.
+It's a version of [Moonlight](https://moonlight-stream.org), the popular open source game streaming app, with three additions:
+
+- **An ultra low latency mode** that makes the handheld's video chip show each frame as soon as it's ready, instead of holding it back. It's the same idea as the Snapdragon low latency mode in [ClassicOldSong's Android version of Moonlight](https://github.com/ClassicOldSong/moonlight-android), rebuilt for Linux.
+- **A redesigned look** made for small screens and controllers.
+- **A one-tap install** for ArmadaOS that works from Steam's Game Mode, just like the regular Moonlight.
 
 ![The Computers screen in Moonlight Armada](docs/screenshots/computers.png)
 
 ## Contents
 
-- [Highlights](#highlights)
+**For everyone**
+- [Install it](#install-it)
+- [Add it to Game Mode](#add-it-to-game-mode)
+- [Connect to your PC](#connect-to-your-pc)
+- [Turn on ultra low latency mode](#turn-on-ultra-low-latency-mode)
+- [Is it actually faster?](#is-it-actually-faster)
 - [Screenshots](#screenshots)
-- [Installing on ArmadaOS](#installing-on-armadaos)
-- [Using ultra low latency mode](#using-ultra-low-latency-mode)
+- [Something's not working](#somethings-not-working)
+
+**For developers**
 - [How ultra low latency mode works](#how-ultra-low-latency-mode-works)
 - [The Iris kernel patch](#the-iris-kernel-patch)
 - [The new interface](#the-new-interface)
 - [Building from source](#building-from-source)
-- [How the AppImage is packaged](#how-the-appimage-is-packaged)
-- [Troubleshooting](#troubleshooting)
+- [Packaging](#packaging)
 - [Roadmap](#roadmap)
 - [What changed from moonlight-qt](#what-changed-from-moonlight-qt)
-- [Credits and license](#credits-and-license)
 
-## Highlights
+# For everyone
 
-- **Ultra low latency decoding.** One switch tunes the whole decode path for Snapdragon's V4L2 hardware decoders (Venus and Iris). It asks the decoder to return frames as soon as they are decoded, enables any vendor low latency controls the driver exposes, turns off frame pacing, and runs the decoder thread at real-time priority.
-- **Works on today's ArmadaOS kernel.** Mainline Iris doesn't yet expose the decode order control, so Moonlight Armada detects that and prefers H.264, which outputs frames immediately without it. A [kernel patch](contrib/kernel/) is included for the ArmadaOS team to add the control.
-- **Honest diagnostics.** The performance overlay shows exactly what ultra low latency mode could enable on your hardware.
-- **Modernized interface.** A new dark theme, card-based layout, status chips, and a cleaner toolbar and settings page, designed for handheld screens and gamepad navigation.
-- **One-file install.** Each build is a single aarch64 AppImage that runs on ArmadaOS without installing anything.
-- **Automated builds.** GitHub Actions builds, smoke-tests and publishes the AppImage on every change.
+## Install it
+
+Moonlight Armada comes as a **Flatpak**, the same kind of app package as the Moonlight you can get from Discover. No terminal or keyboard needed.
+
+1. Switch your handheld to **Desktop Mode**.
+2. Open the [Releases page](https://github.com/drluciano/moonlight-armada/releases) in the web browser and tap the file ending in **`.flatpak`** under the newest release to download it.
+3. Open the downloaded file. **Discover** opens and offers to install Moonlight Armada. Tap **Install**.
+
+Discover also downloads the KDE runtime that the app runs on, if you don't already have it from installing the regular Moonlight. Moonlight Armada installs alongside the regular Moonlight, so you can keep both.
+
+To update, download and open a newer `.flatpak` the same way.
+
+## Add it to Game Mode
+
+1. Still in Desktop Mode, open **Steam**.
+2. Choose **Games → Add a Non-Steam Game to My Library**.
+3. Tick **Moonlight Armada** and choose **Add Selected Programs**.
+4. Switch back to Game Mode. Moonlight Armada is in your library under **Non-Steam**.
+
+## Connect to your PC
+
+Moonlight Armada works with the same PC software as Moonlight. Install [Sunshine](https://github.com/LizardByte/Sunshine) (free) on your gaming PC, or use NVIDIA GeForce Experience if you already have it.
+
+Open Moonlight Armada on the handheld while both are on the same network. Your PC shows up automatically. Select it, and type the PIN it shows into Sunshine on your PC. After that, pick a game and play.
+
+## Turn on ultra low latency mode
+
+1. In Moonlight Armada, open **Settings**. The **Latency** card is at the top.
+2. Turn on **Ultra low latency decoding (experimental)**.
+3. To see what it's doing, also turn on **Show performance stats while streaming**.
+4. Start a stream.
+
+Ultra low latency mode works best with the **H.264** video codec on today's ArmadaOS, and picks it for you when the codec setting is left on **Automatic** with HDR off. It also turns off **frame pacing**, which smooths out uneven frames by holding them back briefly.
+
+## Is it actually faster?
+
+Here's what we've measured so far on an AYN Odin 3, using the **Average decoding time** in the performance stats. That's how long each frame of the stream takes from arriving on the handheld to being turned into a picture.
+
+| | Game Mode | Desktop Mode |
+|---|---|---|
+| Regular Moonlight | 6–7 ms | under 1 ms |
+| Moonlight Armada, ultra low latency on | about 6 ms | about 0.7 ms |
+
+So far, **the difference you notice comes from Game Mode vs Desktop Mode, not from ultra low latency mode.** Both apps decode in under 1 ms in Desktop Mode, and both are several milliseconds slower in Game Mode. We're working out what Game Mode does differently. Desktop Mode isn't a practical fix, because Steam's controller support there doesn't work well with the Odin's built-in gamepad.
+
+The performance stats also show a **Video decoder** line. If it says `(software)`, the handheld's CPU is decoding the video instead of its video chip, which is slower. That's one possible explanation for the Game Mode numbers.
+
+Decoding time is only part of the delay you feel. Your network and the screen add their own time on top.
 
 ## Screenshots
 
-These were taken with three example computers saved and no host running, so they show as Offline.
+These were taken with three example computers saved and no PC running, so they show as Offline.
 
 | Computers | Settings |
 |---|---|
@@ -44,62 +95,22 @@ These were taken with three example computers saved and no host running, so they
 
 ### Before and after
 
-Stock moonlight-qt 6.2.0 (left) next to Moonlight Armada (right), with the same saved computers and settings:
+The regular Moonlight 6.2.0 (left) next to Moonlight Armada (right), with the same saved computers and settings:
 
-| Stock moonlight-qt | Moonlight Armada |
+| Regular Moonlight | Moonlight Armada |
 |---|---|
 | ![Stock moonlight-qt Computers screen](docs/screenshots/stock-computers.png) | ![Moonlight Armada Computers screen](docs/screenshots/computers.png) |
 | ![Stock moonlight-qt Settings screen](docs/screenshots/stock-settings.png) | ![Moonlight Armada Settings screen](docs/screenshots/settings.png) |
 
-## Installing on ArmadaOS
+## Something's not working
 
-1. Download the latest `Moonlight-Armada-*-aarch64.AppImage`:
-   - From [Releases](https://github.com/drluciano/moonlight-armada/releases) for tagged versions, or
-   - From the **Artifacts** section of the latest [ArmadaOS AppImage build](https://github.com/drluciano/moonlight-armada/actions/workflows/build-armada-appimage.yml). GitHub wraps artifacts in a zip, so unzip it first.
-2. Switch to Desktop Mode, open a terminal in the download folder, and make it executable:
-   ```sh
-   chmod +x Moonlight-Armada-*-aarch64.AppImage
-   ```
-3. Run it by double-clicking it or from the terminal:
-   ```sh
-   ./Moonlight-Armada-*-aarch64.AppImage
-   ```
-4. To launch it from Game Mode, see [Adding it to Game Mode](#adding-it-to-game-mode).
-5. Pair with your gaming PC running [Sunshine](https://github.com/LizardByte/Sunshine) (or GeForce Experience), the same as stock Moonlight.
+- **Opening the `.flatpak` file doesn't open Discover.** Long-press or right-click the file, choose **Open With**, and pick **Discover**.
+- **Discover says it can't find the runtime.** Discover needs the Flathub source, which ArmadaOS normally has. If you can install the regular Moonlight from Discover, it's set up.
+- **It doesn't start from Game Mode.** Open the shortcut's **Properties → Compatibility** in Steam and make sure **Force the use of a specific Steam Play compatibility tool** is off. Moonlight Armada is a native Linux app, so Proton can't run it.
+- **The performance stats say "Ultra low latency: partial".** You're streaming with HEVC or AV1. Set **Settings → Video codec** to **H.264**, or leave it on **Automatic** with HDR off.
+- **The Video decoder line says "(software)".** The app couldn't use the handheld's video chip. Please [open an issue](https://github.com/drluciano/moonlight-armada/issues) with a photo of the performance stats.
 
-If your system can't mount AppImages (no FUSE), run it with `--appimage-extract-and-run`.
-
-### Adding it to Game Mode
-
-Open the AppImage once in Desktop Mode (if double-clicking does nothing, right-click it, choose **Properties → Permissions**, tick **Is executable**, and try again). The first time it opens, it installs itself:
-
-- it copies the app to `~/.local/share/moonlight-armada`, so Steam launches a normal installed app rather than the AppImage,
-- it adds **Moonlight Armada** to the app menu,
-- and it adds **Moonlight Armada** to Steam as a non-Steam game for every Steam account on the device. If Steam is open, it closes Steam while it does this and reopens it afterwards, because Steam would otherwise overwrite the change. A backup of Steam's shortcut list is kept next to it as `shortcuts.vdf.armada-backup`.
-
-To update, open a newer AppImage once the same way. If the Steam entry is missing, use **Add a Non-Steam Game** in Desktop Mode and tick **Moonlight Armada**.
-
-If it still doesn't start:
-
-- In the shortcut's **Properties → Compatibility**, make sure **Force the use of a specific Steam Play compatibility tool** is off. Moonlight is a native Linux app, and Proton can't run it.
-- Check `~/.cache/moonlight-armada/last-run.log`. Every launch writes it, so if it wasn't updated, Steam never reached the launcher.
-
-In Game Mode the launcher runs Moonlight on X11, because gamescope only shows X11 windows. Set `QT_QPA_PLATFORM` in the launch options to override that.
-
-## Using ultra low latency mode
-
-1. Open **Settings**. The **Latency** card is at the top.
-2. Turn on **Ultra low latency decoding (experimental)**.
-3. Optionally, turn on **Show performance stats while streaming** to see what was enabled.
-4. Start a stream.
-
-Turning on ultra low latency mode also turns off and greys out **frame pacing**, since frame pacing deliberately holds frames back to smooth delivery.
-
-From the command line, use `--ultra-low-latency` or `--no-ultra-low-latency` with `moonlight stream`.
-
-### Reading the performance overlay
-
-The overlay gains an **Ultra low latency** line that says what took effect:
+### What the "Ultra low latency" line means
 
 | Overlay text | Meaning |
 |---|---|
@@ -108,11 +119,7 @@ The overlay gains an **Ultra low latency** line that says what took effect:
 | `partial, iris_driver lacks decode order control` | HEVC or AV1 on a decoder without the control. Pacing and thread priority still apply, but the decoder may hold frames. Use H.264 or apply the [kernel patch](#the-iris-kernel-patch). |
 | `active (generic)` | A non-V4L2 decoder (for example VA-API or software). Only the generic tuning applies. |
 
-The **Video decoder** line shows which decoder is in use and whether it's hardware or software. On Snapdragon it should read `h264_v4l2m2m (hardware)` or `hevc_v4l2m2m (hardware)`.
-
-The **average decoding time** line is the number to watch. On an AYN Odin with mainline Iris in Desktop Mode, H.264 decodes in under 1 ms. Keep in mind that this is decode time only. Network and display time are added on top of it.
-
-> **Game Mode vs Desktop Mode.** Stock Moonlight on ArmadaOS measures 6–7 ms decode time in Game Mode but under 1 ms in Desktop Mode, so the session you stream from matters as much as the decoder settings. We're still working out why, and how much ultra low latency mode adds on top of each. Check the **Video decoder** line first: a `(software)` decoder in Game Mode would explain the gap.
+# For developers
 
 ## How ultra low latency mode works
 
@@ -201,11 +208,35 @@ qmake6 ../moonlight-qt.pro CONFIG+=release
 make -j$(nproc)
 ```
 
-The binary is `build/app/moonlight`.
+The binary is `build/app/moonlight`. Pass `--ultra-low-latency` or `--no-ultra-low-latency` to `moonlight stream` to override the setting from the command line.
 
-### Package an AppImage
+## Packaging
 
-On an arm64 machine, with [appimagetool](https://github.com/AppImage/appimagetool) on your `PATH`:
+### Flatpak (the recommended install)
+
+[`packaging/flatpak/io.github.drluciano.MoonlightArmada.json`](packaging/flatpak/io.github.drluciano.MoonlightArmada.json) is based on [Flathub's Moonlight manifest](https://github.com/flathub/com.moonlight_stream.Moonlight), so the app runs in the same environment that's known to work in Game Mode. The differences are:
+
+- its own app ID, `io.github.drluciano.MoonlightArmada`, so it installs next to stock Moonlight and keeps separate settings,
+- this repository as the app source,
+- an explicit `CMAKE_INSTALL_LIBDIR=lib` on the CMake modules, which the aarch64 build needs to find SDL,
+- no x86_64-only gamescope WSI layer.
+
+The manifest builds its own FFmpeg (cgutman's Moonlight branch with `h264_v4l2m2m`, `hevc_v4l2m2m` and V4L2 request decoders), SDL3 with sdl2-compat, SDL2_ttf, dav1d and libplacebo on the KDE 6 runtime. It has `--device=all`, so the app can open `/dev/video*` for the hardware decoder.
+
+To build it on an arm64 machine with flatpak-builder:
+
+```sh
+flatpak-builder --user --install-deps-from=flathub --repo=repo --force-clean build-dir \
+  packaging/flatpak/io.github.drluciano.MoonlightArmada.json
+flatpak build-bundle repo Moonlight-Armada-aarch64.flatpak io.github.drluciano.MoonlightArmada \
+  --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
+```
+
+The `--runtime-repo` option is what lets Discover fetch the KDE runtime when someone opens the bundle.
+
+### AppImage
+
+The AppImage is a single file that runs in Desktop Mode without installing. It doesn't launch reliably from Game Mode, so the Flatpak is the recommended install. To package it on an arm64 machine with [appimagetool](https://github.com/AppImage/appimagetool) on your `PATH`:
 
 ```sh
 scripts/build-appimage-armada.sh build out/Moonlight-Armada-aarch64.AppImage
@@ -213,17 +244,9 @@ scripts/build-appimage-armada.sh build out/Moonlight-Armada-aarch64.AppImage
 
 The script also works for cross-builds from x86_64 using Ubuntu's multiarch arm64 packages. In that case, set `CROSS=aarch64-linux-gnu-`.
 
-### Continuous integration and releases
+Opening the AppImage copies the app to `~/.local/share/moonlight-armada`, adds a menu entry, and adds a Steam shortcut (closing and reopening Steam while it edits `shortcuts.vdf`, and keeping a `shortcuts.vdf.armada-backup`). Every run is logged to `~/.cache/moonlight-armada/last-run.log`.
 
-[`.github/workflows/build-armada-appimage.yml`](.github/workflows/build-armada-appimage.yml) runs on GitHub's native `ubuntu-24.04-arm` runners:
-
-- **Pull requests and pushes to `main`** build Moonlight, package the AppImage, check that it starts without missing libraries, and upload it as a build artifact.
-- **Tags starting with `v`** (for example `v0.1.0`) also publish the AppImage as a GitHub Release:
-  ```sh
-  git tag v0.1.0 && git push origin v0.1.0
-  ```
-
-## How the AppImage is packaged
+#### How the AppImage is packaged
 
 ArmadaOS is Arch-based and can be lean, so the AppImage bundles everything except a core set of libraries that every Arch desktop or Steam install provides: glibc and the C++ runtime, Mesa/GL, X11/xcb, Wayland, xkbcommon, glib, harfbuzz, fontconfig/freetype, ALSA, dbus and systemd/udev. These choices came out of on-device testing:
 
@@ -233,20 +256,21 @@ ArmadaOS is Arch-based and can be lean, so the AppImage bundles everything excep
 - **Wayland stays on.** Upstream's AppImage disables Wayland because it bundles libwayland-client. This one uses the system's, which matters for Gamescope and KDE.
 - **Every run is logged.** The AppRun writes each run to `~/.cache/moonlight-armada/last-run.log`. If a library is missing, the log lists every missing library in one pass.
 
-## Troubleshooting
+### Continuous integration and releases
 
-- **Nothing happens when I launch it.** Run it from a terminal and check `~/.cache/moonlight-armada/last-run.log`. Missing libraries are listed at the end.
-- **"Ultra low latency: partial".** You're streaming HEVC or AV1 on mainline Iris. Choose H.264 under **Settings → Video codec** (or leave it on Automatic with HDR off), or apply the [kernel patch](#the-iris-kernel-patch).
-- **Software decoding instead of hardware.** Your user needs access to `/dev/video*`. Check with `ls -l /dev/video*`; on most setups the `video` group or the seat's uaccess rule grants it.
-- **Hardware decoder check.** `v4l2-ctl --list-devices` (from `v4l-utils`) should list the Qualcomm decoder, for example `qcom-iris-decoder` on Iris devices.
-- **No title bar in Desktop Mode windows.** The bundled libdecor can't find the system's decoration plugins. This doesn't affect fullscreen or Game Mode.
+Both builds run on GitHub's native `ubuntu-24.04-arm` runners:
+
+- [`build-armada-flatpak.yml`](.github/workflows/build-armada-flatpak.yml) builds the Flatpak bundle, installs it, and checks that it starts.
+- [`build-armada-appimage.yml`](.github/workflows/build-armada-appimage.yml) builds the AppImage and checks that it starts without missing libraries.
+
+Pull requests and pushes to `main` upload both as build artifacts. Tags starting with `v` (for example `v0.1.0`) publish a GitHub Release with both files; tags with a suffix, such as `v0.1.0-test1`, are published as pre-releases. A test pre-release of the Flatpak alone can also be published by running the Flatpak workflow by hand with a `test_release` tag.
 
 ## Roadmap
 
-- **Zero-copy frames.** Mainline FFmpeg's v4l2m2m decoder returns frames in system memory (NV12), so each frame is copied before display. An FFmpeg build with DRM-PRIME output for V4L2 (as in the Raspberry Pi and LibreELEC forks) would remove that copy.
+- **Close the Game Mode gap.** Find out why both apps decode about 5–6 ms slower in Game Mode than in Desktop Mode, then compare ultra low latency on and off in the same mode.
+- **Zero-copy frames.** FFmpeg's v4l2m2m decoder returns frames in system memory (NV12), so each frame is copied before display. DRM-PRIME output for V4L2 would remove that copy.
 - **Upstream the Iris patch** through the ArmadaOS kernel and then mainline Linux, so HEVC gets the full mode everywhere.
-- **Vulkan renderer and HDR** by bundling libplacebo.
-- **Flatpak** for a more integrated install on SteamOS-like systems.
+- **Publish on Flathub** so updates arrive through Discover automatically.
 
 ## What changed from moonlight-qt
 
@@ -256,7 +280,7 @@ ArmadaOS is Arch-based and can be lean, so the AppImage bundles everything excep
 | Setting and CLI flag | `app/settings/streamingpreferences.{h,cpp}`, `app/cli/commandlineparser.cpp`, `app/gui/SettingsView.qml` |
 | Interface | `app/gui/Theme.qml`, `Card.qml`, `StatusChip.qml`, `SettingsCard.qml` (new), `main.qml`, `PcView.qml`, `AppView.qml`, `NavigableItemDelegate.qml`, `app/main.cpp` |
 | Kernel patch | `contrib/kernel/` (new) |
-| Packaging and CI | `scripts/build-appimage-armada.sh`, `app/deploy/linux/armada/` (new), `.github/workflows/build-armada-appimage.yml` (replaces upstream's Windows, macOS, Steam Link and x86_64 workflows) |
+| Packaging and CI | `packaging/flatpak/` (new), `scripts/build-appimage-armada.sh`, `app/deploy/linux/armada/` (new), `.github/workflows/build-armada-flatpak.yml` and `build-armada-appimage.yml` (replace upstream's Windows, macOS, Steam Link and x86_64 workflows) |
 
 Everything else is upstream moonlight-qt. For upstream's features, supported platforms and build instructions for other systems, see the [moonlight-qt README](https://github.com/moonlight-stream/moonlight-qt#readme).
 
