@@ -3,6 +3,7 @@
 #include "utils.h"
 #include "v4l2lowlatency.h"
 #include "streaming/session.h"
+#include <QFile>
 
 #include <h264_stream.h>
 
@@ -804,6 +805,7 @@ void FFmpegVideoDecoder::addVideoStats(VIDEO_STATS& src, VIDEO_STATS& dst)
     dst.pacerDroppedFrames += src.pacerDroppedFrames;
     dst.totalReassemblyTimeUs += src.totalReassemblyTimeUs;
     dst.totalDecodeTimeUs += src.totalDecodeTimeUs;
+    dst.totalDecodeQueueTimeUs += src.totalDecodeQueueTimeUs;
     dst.totalPacerTimeUs += src.totalPacerTimeUs;
     dst.totalRenderTimeUs += src.totalRenderTimeUs;
 
@@ -956,9 +958,10 @@ void FFmpegVideoDecoder::stringifyVideoStats(VIDEO_STATS& stats, char* output, i
             // Makes it obvious when we've fallen back to software decoding
             ret = snprintf(&output[offset],
                            length - offset,
-                           "Video decoder: %s (%s)\n",
+                           "Video decoder: %s (%s), renderer: %s\n",
                            m_VideoDecoderCtx->codec->name,
-                           isHardwareAccelerated() ? "hardware" : "software");
+                           isHardwareAccelerated() ? "hardware" : "software",
+                           m_FrontendRenderer != nullptr ? m_FrontendRenderer->getRendererName() : "none");
             if (ret < 0 || ret >= length - offset) {
                 SDL_assert(false);
                 return;
@@ -979,6 +982,37 @@ void FFmpegVideoDecoder::stringifyVideoStats(VIDEO_STATS& stats, char* output, i
 
             offset += ret;
         }
+
+#ifdef Q_OS_LINUX
+        // Helps explain decode time differences between sessions (e.g. Game Mode vs desktop)
+        {
+            QString clocks;
+            for (int policy = 0; policy < 16; policy++) {
+                QFile freqFile(QString("/sys/devices/system/cpu/cpufreq/policy%1/scaling_cur_freq").arg(policy));
+                if (freqFile.open(QIODevice::ReadOnly)) {
+                    bool ok;
+                    double ghz = freqFile.readAll().trimmed().toLongLong(&ok) / 1000000.0;
+                    if (ok) {
+                        clocks += (clocks.isEmpty() ? "" : "/") + QString::number(ghz, 'f', 2);
+                    }
+                }
+            }
+            QFile governorFile("/sys/devices/system/cpu/cpufreq/policy0/scaling_governor");
+            QString governor = governorFile.open(QIODevice::ReadOnly) ? QString(governorFile.readAll().trimmed()) : QString("unknown");
+            ret = snprintf(&output[offset],
+                           length - offset,
+                           "Display: %s, CPU clusters: %s GHz (%s)\n",
+                           SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver() : "unknown",
+                           clocks.isEmpty() ? "unknown" : clocks.toUtf8().constData(),
+                           governor.toUtf8().constData());
+            if (ret < 0 || ret >= length - offset) {
+                SDL_assert(false);
+                return;
+            }
+
+            offset += ret;
+        }
+#endif
 
         ret = snprintf(&output[offset],
                        length - offset,
@@ -1026,13 +1060,15 @@ void FFmpegVideoDecoder::stringifyVideoStats(VIDEO_STATS& stats, char* output, i
                        "Frames dropped by your network connection: %.2f%%\n"
                        "Frames dropped due to network jitter: %.2f%%\n"
                        "Average network latency: %s\n"
-                       "Average decoding time: %.2f ms\n"
+                       "Average decoding time: %.2f ms (waiting %.2f ms, in decoder %.2f ms)\n"
                        "Average frame queue delay: %.2f ms\n"
                        "Average rendering time (including monitor V-sync latency): %.2f ms\n",
                        (float)stats.networkDroppedFrames / stats.totalFrames * 100,
                        (float)stats.pacerDroppedFrames / stats.decodedFrames * 100,
                        rttString,
                        (double)(stats.totalDecodeTimeUs / 1000.0) / stats.decodedFrames,
+                       (double)(stats.totalDecodeQueueTimeUs / 1000.0) / stats.decodedFrames,
+                       (double)((stats.totalDecodeTimeUs - qMin(stats.totalDecodeQueueTimeUs, stats.totalDecodeTimeUs)) / 1000.0) / stats.decodedFrames,
                        (double)(stats.totalPacerTimeUs / 1000.0) / stats.renderedFrames,
                        (double)(stats.totalRenderTimeUs / 1000.0) / stats.renderedFrames);
         if (ret < 0 || ret >= length - offset) {
@@ -1047,7 +1083,7 @@ void FFmpegVideoDecoder::stringifyVideoStats(VIDEO_STATS& stats, char* output, i
 void FFmpegVideoDecoder::logVideoStats(VIDEO_STATS& stats, const char* title)
 {
     if (stats.renderedFps > 0 || stats.renderedFrames != 0) {
-        char videoStatsStr[512];
+        char videoStatsStr[2048];
         stringifyVideoStats(stats, videoStatsStr, sizeof(videoStatsStr));
 
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
@@ -2258,6 +2294,9 @@ int FFmpegVideoDecoder::submitDecodeUnit(PDECODE_UNIT du)
     }
 
     m_ActiveWndVideoStats.totalReassemblyTimeUs += (du->enqueueTimeUs - du->receiveTimeUs);
+
+    // Time this frame waited before we could hand it to the decoder
+    m_ActiveWndVideoStats.totalDecodeQueueTimeUs += (LiGetMicroseconds() - du->enqueueTimeUs);
 
     err = avcodec_send_packet(m_VideoDecoderCtx, m_Pkt);
     if (err < 0) {

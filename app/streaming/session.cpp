@@ -294,7 +294,10 @@ bool Session::chooseDecoder(StreamingPreferences::VideoDecoderSelection vds,
     params.frameRate = frameRate;
     params.videoFormat = videoFormat;
     params.window = window;
-    params.enableVsync = enableVsync;
+    // V-sync makes every frame wait for the next display refresh. Under
+    // gamescope that wait is ~6 ms per frame, so ultra low latency mode
+    // turns it off (like frame pacing below).
+    params.enableVsync = enableVsync && !enableUltraLowLatency;
     params.enableUltraLowLatency = enableUltraLowLatency;
     params.testOnly = testOnly;
 
@@ -306,7 +309,7 @@ bool Session::chooseDecoder(StreamingPreferences::VideoDecoderSelection vds,
 
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
                 "V-sync %s",
-                enableVsync ? "enabled" : "disabled");
+                params.enableVsync ? "enabled" : "disabled");
 
     if (enableUltraLowLatency) {
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
