@@ -6,6 +6,68 @@ unset LD_PRELOAD LD_LIBRARY_PATH
 
 HERE="$(dirname "$(readlink -f "$0")")"
 
+# Opening the AppImage installs it: the app is copied to a normal folder, gets a
+# menu entry and is added to Steam, so Game Mode launches a plain installed app
+# instead of mounting the AppImage. Opening a newer AppImage updates that copy.
+DEST="${XDG_DATA_HOME:-$HOME/.local/share}/moonlight-armada"
+install_app()
+{
+  [ -n "$HOME" ] || return 1
+  APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+  rm -rf "$DEST" && mkdir -p "$DEST" "$APPS" && cp -a "$HERE/." "$DEST/" || return 1
+  sed -e "s|^Exec=.*|Exec=$DEST/AppRun %U|" -e "s|^Icon=.*|Icon=$DEST/moonlight.svg|" \
+    -e "/^TryExec=/d" "$HERE/moonlight.desktop" > "$APPS/moonlight-armada.desktop"
+
+  # Add a non-Steam game shortcut for every Steam account on this device
+  vdfs=""
+  for u in "$HOME/.local/share/Steam/userdata"/* "$HOME/.steam/steam/userdata"/*; do
+    [ -d "$u" ] || continue
+    u="$(readlink -f "$u")"
+    case " $seen " in *" $u "*) continue ;; esac
+    seen="$seen $u"
+    [ "$(basename "$u")" = 0 ] && continue
+    vdf="$u/config/shortcuts.vdf"
+    grep -qaF "\"$DEST/AppRun\"" "$vdf" 2>/dev/null || vdfs="$vdfs $vdf"
+  done
+
+  # Steam keeps its shortcut list in memory and writes it back on exit, so it
+  # has to be closed while we edit the file. It's restarted afterwards.
+  restart_steam=""
+  if [ -n "$vdfs" ] && [ -z "$SteamGameId" ] && pgrep -x steam >/dev/null 2>&1; then
+    steam -shutdown >/dev/null 2>&1
+    i=0
+    while pgrep -x steam >/dev/null 2>&1 && [ $i -lt 30 ]; do sleep 1; i=$((i + 1)); done
+    if pgrep -x steam >/dev/null 2>&1; then vdfs=""; else restart_steam=1; fi
+  elif [ -n "$SteamGameId" ]; then
+    vdfs=""
+  fi
+
+  added=""
+  for vdf in $vdfs; do
+    mkdir -p "$(dirname "$vdf")"
+    [ -f "$vdf" ] && [ ! -f "$vdf.armada-backup" ] && cp "$vdf" "$vdf.armada-backup"
+    "$DEST/usr/bin/steam-shortcut" "$vdf" "Moonlight Armada" "$DEST/AppRun" "$DEST" "$DEST/moonlight.svg" && added=1
+  done
+  [ -n "$restart_steam" ] && (setsid steam >/dev/null 2>&1 &)
+
+  msg="Moonlight Armada is installed."
+  [ -n "$added" ] && msg="Moonlight Armada was added to Steam. It will appear in your library in Game Mode."
+  echo "$msg"
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -i "$DEST/moonlight.svg" "Moonlight Armada" "$msg" 2>/dev/null
+  fi
+  return 0
+}
+
+if [ "$1" = "--install" ]; then
+  install_app || { echo "Install failed"; exit 1; }
+  exit 0
+fi
+if [ -n "$APPIMAGE" ] && [ "$HERE" != "$DEST" ] && \
+   ! cmp -s "$HERE/usr/bin/moonlight" "$DEST/usr/bin/moonlight"; then
+  INSTALL_RESULT="$(install_app 2>&1)" || INSTALL_RESULT="Install failed: $INSTALL_RESULT"
+fi
+
 LOGDIR="${XDG_CACHE_HOME:-$HOME/.cache}/moonlight-armada"
 mkdir -p "$LOGDIR" 2>/dev/null
 LOG="$LOGDIR/last-run.log"
@@ -17,6 +79,9 @@ LOG="$LOGDIR/last-run.log"
   echo "SteamGameId=$SteamGameId"
   echo "Inherited LD_PRELOAD=$INHERITED_LD_PRELOAD"
   echo "Inherited LD_LIBRARY_PATH=$INHERITED_LD_LIBRARY_PATH"
+  echo "XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP GAMESCOPE_WAYLAND_DISPLAY=$GAMESCOPE_WAYLAND_DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
+  echo "Running from $HERE"
+  [ -n "$INSTALL_RESULT" ] && echo "Install: $INSTALL_RESULT"
 } > "$LOG" 2>/dev/null
 
 # Steam launches non-Steam games with its own runtime on LD_LIBRARY_PATH and
@@ -26,6 +91,14 @@ export LD_LIBRARY_PATH="$HERE/usr/lib"
 export QT_PLUGIN_PATH="$HERE/usr/plugins"
 export QML_IMPORT_PATH="$HERE/usr/qml"
 export QML2_IMPORT_PATH="$HERE/usr/qml"
+
+# Game Mode runs apps inside gamescope, which only shows X11 windows. If Qt picks
+# Wayland there, the window never appears, so use X11 unless told otherwise.
+if [ -z "$QT_QPA_PLATFORM" ] && [ -n "$DISPLAY" ] && \
+   { [ -n "$GAMESCOPE_WAYLAND_DISPLAY" ] || [ "$XDG_CURRENT_DESKTOP" = gamescope ] || [ -n "$SteamGamepadUI" ]; }; then
+  export QT_QPA_PLATFORM=xcb
+  echo "Game Mode detected, using X11" >> "$LOG" 2>/dev/null
+fi
 
 # Prefer the host libva (it must match the host's VA drivers); fall back to ours if absent
 if ! ldconfig -p 2>/dev/null | grep -q 'libva\.so\.2 '; then

@@ -103,5 +103,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" out/*.AppImage \
+          # Tags like v6.2.0-test1 are published as pre-releases
+          PRERELEASE=""
+          [[ "$GITHUB_REF_NAME" == *-* ]] && PRERELEASE="--prerelease"
+          gh release create "$GITHUB_REF_NAME" out/*.AppImage $PRERELEASE \
             --repo "$GITHUB_REPOSITORY" --title "Moonlight Armada $GITHUB_REF_NAME" --generate-notes
