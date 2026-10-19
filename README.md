@@ -83,6 +83,8 @@ So far, **the difference you notice comes from Game Mode vs Desktop Mode, not fr
 
 The performance stats also show a **Video decoder** line. If it says `(software)`, the handheld's CPU is decoding the video instead of its video chip, which is slower. That's one possible explanation for the Game Mode numbers.
 
+Measure with a game running and moving, so the stats show close to your full frame rate. When the picture is still, your PC sends fewer frames (16 FPS on a still desktop, for example), the handheld's video chip slows down between them, and decoding times look worse than they are while you play. The **Average decoding time** line also splits into **waiting** (time a frame sat in line before reaching the video chip) and **in decoder** (time inside it), and a **Display** line shows the CPU clock speeds, which helps tell these cases apart.
+
 Decoding time is only part of the delay you feel. Your network and the screen add their own time on top.
 
 ## Screenshots
