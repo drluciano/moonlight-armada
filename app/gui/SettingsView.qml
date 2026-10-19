@@ -118,7 +118,7 @@ Flickable {
                     id: ultraLowLatencyCheck
                     width: parent.width
                     hoverEnabled: true
-                    text: qsTr("Ultra low latency decoding (experimental)")
+                    text: qsTr("Low latency mode")
                     font.pointSize: 12
                     checked: StreamingPreferences.ultraLowLatency
                     onCheckedChanged: {
@@ -128,15 +128,25 @@ Flickable {
                     ToolTip.delay: 1000
                     ToolTip.timeout: 8000
                     ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Asks the hardware decoder to output each frame as soon as it is decoded and gives decoding real-time priority. V-Sync and frame pacing are turned off while this is enabled.")
+                    ToolTip.text: qsTr("V-Sync and frame pacing are turned off while this is enabled.")
                 }
 
                 Label {
                     width: parent.width
                     leftPadding: ultraLowLatencyCheck.indicator ? ultraLowLatencyCheck.indicator.width + ultraLowLatencyCheck.spacing : 0
-                    text: qsTr("Built for Snapdragon handhelds (8 Gen 2, 8 Gen 3, 8 Elite) running ArmadaOS. On other hardware only the generic optimizations apply. Check the performance overlay to see what was enabled.")
+                    text: qsTr("Turns off V-Sync and frame pacing, asks the video driver to return each frame as soon as it's decoded, and gives decoding real-time priority.")
                     font.pointSize: Theme.fontCaption
                     color: Theme.textSecondary
+                    wrapMode: Text.Wrap
+                }
+
+                Label {
+                    width: parent.width
+                    visible: text !== ""
+                    leftPadding: ultraLowLatencyCheck.indicator ? ultraLowLatencyCheck.indicator.width + ultraLowLatencyCheck.spacing : 0
+                    text: SystemProperties.lowLatencyDecoderStatus
+                    font.pointSize: Theme.fontCaption
+                    color: Theme.accent
                     wrapMode: Text.Wrap
                 }
             }

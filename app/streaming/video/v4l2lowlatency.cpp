@@ -5,6 +5,7 @@
 #ifdef Q_OS_LINUX
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 
 #include <errno.h>
@@ -197,10 +198,17 @@ bool V4L2LowLatency::applyToNewDecoders(const QSet<int>& fdsBeforeOpen,
     return false;
 }
 
-bool V4L2LowLatency::hasQualcommDecoderWithoutDecodeOrderOutput()
+const V4L2LowLatency::QualcommDecoderInfo& V4L2LowLatency::probeQualcommDecoder()
 {
-    QDir devDir("/dev");
+    static QualcommDecoderInfo info;
+    static bool probed = false;
 
+    if (probed) {
+        return info;
+    }
+    probed = true;
+
+    QDir devDir("/dev");
     for (const QString& node : devDir.entryList(QStringList() << "video*", QDir::System)) {
         QByteArray path = devDir.filePath(node).toUtf8();
         int fd = open(path.constData(), O_RDWR | O_NONBLOCK | O_CLOEXEC);
@@ -209,7 +217,6 @@ bool V4L2LowLatency::hasQualcommDecoderWithoutDecodeOrderOutput()
         }
 
         QString driverName;
-        bool result = false;
         // Venus reports "qcom-venus" while Iris reports "iris_driver"
         if (isM2MDecoder(fd, driverName) &&
                 (driverName.startsWith("qcom") || driverName.contains("iris"))) {
@@ -227,22 +234,68 @@ bool V4L2LowLatency::hasQualcommDecoderWithoutDecodeOrderOutput()
                 isDecoder = (fmt.flags & V4L2_FMT_FLAG_COMPRESSED) != 0;
             }
 
-            struct v4l2_queryctrl qctrl;
-            result = isDecoder && !queryControl(fd, V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE, qctrl);
+            if (isDecoder) {
+                struct v4l2_queryctrl qctrl;
+                info.found = true;
+                info.isIris = driverName.contains("iris");
+                info.driverName = driverName;
+                info.hasDecodeOrderControl = queryControl(fd, V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE, qctrl);
+            }
         }
 
         close(fd);
 
-        if (result) {
-            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
-                        "%s (%s) lacks decode order output control",
-                        path.constData(),
-                        driverName.toUtf8().constData());
-            return true;
+        if (info.found) {
+            break;
         }
     }
 
-    return false;
+    if (info.isIris) {
+        QFile param("/sys/module/qcom_iris/parameters/low_latency");
+        if (param.open(QIODevice::ReadOnly)) {
+            QByteArray value = param.readAll().trimmed();
+            info.kernelLowLatency = (value == "Y" || value == "1") ? 1 : 0;
+        }
+    }
+
+    if (info.found) {
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
+                    "Qualcomm decoder: %s, decode order control: %s, qcom_iris.low_latency: %d",
+                    info.driverName.toUtf8().constData(),
+                    info.hasDecodeOrderControl ? "yes" : "no",
+                    info.kernelLowLatency);
+    }
+
+    return info;
+}
+
+bool V4L2LowLatency::hasQualcommDecoderWithoutDecodeOrderOutput()
+{
+    const QualcommDecoderInfo& info = probeQualcommDecoder();
+    return info.found && !info.hasDecodeOrderControl;
+}
+
+int V4L2LowLatency::irisDecodeStages(const QualcommDecoderInfo& info, int width, int height,
+                                     bool decodeOrderRequested)
+{
+    if (!info.isIris) {
+        return 0;
+    }
+
+    int mbs = ((width + 15) / 16) * ((height + 15) / 16);
+
+    // iris_res_is_less_than(width, height, 1280, 720)
+    if (mbs < (1280 / 16) * (720 / 16) && width < 1280 && height < 1280) {
+        return 1;
+    }
+    if (decodeOrderRequested && info.hasDecodeOrderControl) {
+        return 1;
+    }
+    if (info.kernelLowLatency == 1 && mbs <= (4096 / 16) * (2160 / 16)) {
+        return 1;
+    }
+
+    return 2;
 }
 
 #else
@@ -250,6 +303,17 @@ bool V4L2LowLatency::hasQualcommDecoderWithoutDecodeOrderOutput()
 bool V4L2LowLatency::hasQualcommDecoderWithoutDecodeOrderOutput()
 {
     return false;
+}
+
+const V4L2LowLatency::QualcommDecoderInfo& V4L2LowLatency::probeQualcommDecoder()
+{
+    static QualcommDecoderInfo info;
+    return info;
+}
+
+int V4L2LowLatency::irisDecodeStages(const QualcommDecoderInfo&, int, int, bool)
+{
+    return 0;
 }
 
 QSet<int> V4L2LowLatency::snapshotVideoDeviceFds()

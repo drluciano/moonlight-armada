@@ -40,4 +40,27 @@ public:
     // H.264 is the only codec where our SPS fixup should get frames output
     // immediately, so ultra low latency mode prefers it.
     static bool hasQualcommDecoderWithoutDecodeOrderOutput();
+
+    struct QualcommDecoderInfo {
+        bool found = false;
+        bool isIris = false;
+        QString driverName;
+        bool hasDecodeOrderControl = false;
+        // The kernel's qcom_iris.low_latency parameter: -1 if the kernel
+        // doesn't have it, otherwise 0 (off) or 1 (on)
+        int kernelLowLatency = -1;
+    };
+
+    // Looks for a Qualcomm V4L2 decoder. The result is cached.
+    static const QualcommDecoderInfo& probeQualcommDecoder();
+
+    // Iris decodes in one or two stages. Two stage decoding pipelines frames,
+    // so each one is returned about a frame interval later. The driver doesn't
+    // report its choice, so this mirrors iris_set_stage(): sessions smaller
+    // than 720p always use one stage, and kernels with the low latency patches
+    // also use one stage for decode order sessions and, with
+    // qcom_iris.low_latency on, for sessions up to 4096x2160.
+    // Returns 0 if the decoder isn't Iris.
+    static int irisDecodeStages(const QualcommDecoderInfo& info, int width, int height,
+                                bool decodeOrderRequested);
 };

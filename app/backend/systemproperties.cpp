@@ -6,6 +6,7 @@
 
 #include "streaming/session.h"
 #include "streaming/streamutils.h"
+#include "streaming/video/v4l2lowlatency.h"
 
 #ifdef Q_OS_WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -103,6 +104,21 @@ SystemProperties::SystemProperties()
 #else
     hasDiscordIntegration = false;
 #endif
+
+    // What low latency mode can do on this device's Qualcomm Iris decoder, if any.
+    // See V4L2LowLatency::irisDecodeStages() for how the stage is chosen.
+    const V4L2LowLatency::QualcommDecoderInfo& decoder = V4L2LowLatency::probeQualcommDecoder();
+    if (decoder.isIris) {
+        if (decoder.hasDecodeOrderControl && decoder.kernelLowLatency == 1) {
+            lowLatencyDecoderStatus = tr("Your video driver decodes each frame in one stage. This mode also has it return frames in decode order.");
+        }
+        else if (decoder.hasDecodeOrderControl) {
+            lowLatencyDecoderStatus = tr("Your video driver decodes 720p and larger in two stages by default. This mode switches it to one stage, so each frame comes back about one frame sooner.");
+        }
+        else {
+            lowLatencyDecoderStatus = tr("Your video driver decodes 720p and larger in two stages, which holds each frame for about one frame. A newer ArmadaOS kernel decodes in one stage.");
+        }
+    }
 
     // These will be queried asynchronously to avoid blocking the UI
     hasHardwareAcceleration = true;
