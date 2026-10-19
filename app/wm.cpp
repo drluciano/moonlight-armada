@@ -205,6 +205,23 @@ bool WMUtils::isRunningDesktopEnvironment()
 #endif
 }
 
+bool WMUtils::isRunningGamescope()
+{
+    bool value;
+    if (Utils::getEnvironmentVariableOverride("IS_GAMESCOPE", &value)) {
+        return value;
+    }
+
+#if defined(Q_OS_LINUX)
+    // Steam's Game Mode (SteamOS and its clones) runs games inside gamescope
+    return qEnvironmentVariableIsSet("GAMESCOPE_WAYLAND_DISPLAY") ||
+           qgetenv("XDG_CURRENT_DESKTOP") == "gamescope" ||
+           qEnvironmentVariableIsSet("SteamGamepadUI");
+#else
+    return false;
+#endif
+}
+
 bool WMUtils::isGpuSlow()
 {
     bool ret;
