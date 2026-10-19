@@ -86,7 +86,7 @@ Here's what we've measured on an AYN Odin 3 in Game Mode, streaming H.264 at 108
 
 **Ultra low latency mode doesn't change decoding time on today's ArmadaOS.** Switching it on and off made no difference in our tests. That's expected: the Odin's video driver has no low latency controls to turn on, and with H.264 the regular Moonlight already gets each frame back as soon as it's decoded. On this device the mode's real benefit is turning off V-Sync and frame pacing. The decoding settings are there for drivers that support them, and for HEVC and AV1 once the driver change described below lands.
 
-Decoding took about 4.9 ms in that same Game Mode test. In Desktop Mode, both the regular Moonlight and Moonlight Armada decode in under 1 ms. We haven't yet measured Game Mode decoding with V-Sync off, so that's next. Desktop Mode isn't a practical way around it, because Steam's controller support there doesn't work well with the Odin's built-in gamepad.
+**The slow decoding in Game Mode comes from the video driver, not Moonlight.** The Odin's driver runs the video chip just fast enough to keep up with the frame rate, so each frame takes about as long as the gap between frames: 8.6 ms inside the decoder at 120 FPS, and 16 ms at 60 FPS. In Desktop Mode the desktop's own activity keeps the clocks higher, which is why both the regular Moonlight and Moonlight Armada decode in under 1 ms there. An app can't change this from inside a Flatpak. It needs the [kernel patch](#the-iris-kernel-patch), which runs the video chip at full speed when an app asks for low latency. Desktop Mode isn't a practical way around it, because Steam's controller support there doesn't work well with the Odin's built-in gamepad.
 
 Measure with a game running and moving, so the stats show close to your full frame rate. When the picture is still, your PC sends fewer frames (16 FPS on a still desktop, for example), the handheld's video chip slows down between them, and decoding times look worse than they are while you play. The **Average decoding time** line also splits into **waiting** (time a frame sat in line before reaching the video chip) and **in decoder** (time inside it), and a **Display** line shows the CPU clock speeds, which helps tell these cases apart.
 
@@ -175,7 +175,9 @@ For H.264, Moonlight already rewrites each stream's SPS to set `max_dec_frame_bu
 
 With the patch applied, Moonlight Armada sets the controls automatically and HEVC gets the full mode too. No app change is needed.
 
-The patch is compile-tested for arm64 against mainline with `W=1`, but not yet tested on hardware. It's meant for the ArmadaOS kernel maintainers, and it needs a `Signed-off-by` from whoever submits it upstream. See [`contrib/kernel/README.md`](contrib/kernel/README.md).
+[`contrib/kernel/0002-media-qcom-iris-clock-low-latency-decoding-for-laten.patch`](contrib/kernel/) goes on top and helps every codec, H.264 included. Mainline Iris sets the decoder clock from the input frame rate it measured over the last second, and always votes DDR bandwidth for 30 FPS. That's just enough to keep up, so each frame takes about one frame interval to decode (8.6 ms at 120 FPS and 16 ms at 60 FPS on the Odin 3 in Game Mode). When a client asks for low latency through the display delay controls, the patch keeps the frame rate at the maximum, so the clock and bandwidth vote are set for the fastest decode. Other clients keep today's power behavior.
+
+Both patches are compile-tested for arm64 against mainline with `W=1`, but not yet tested on hardware. It's meant for the ArmadaOS kernel maintainers, and each needs a `Signed-off-by` from whoever submits it upstream. See [`contrib/kernel/README.md`](contrib/kernel/README.md).
 
 ## The new interface
 
@@ -274,7 +276,7 @@ Pull requests and pushes to `main` upload both as build artifacts. Tags starting
 
 ## Roadmap
 
-- **Close the Game Mode decode gap.** Find out why decoding takes about 4–5 ms in Game Mode but under 1 ms in Desktop Mode, then compare ultra low latency on and off in the same mode.
+- **Close the Game Mode decode gap.** Get both kernel patches into the ArmadaOS kernel and measure decoding in Game Mode again.
 - **Zero-copy frames.** FFmpeg's v4l2m2m decoder returns frames in system memory (NV12), so each frame is copied before display. DRM-PRIME output for V4L2 would remove that copy.
 - **Upstream the Iris patch** through the ArmadaOS kernel and then mainline Linux, so HEVC gets the full mode everywhere.
 - **Publish on Flathub** so updates arrive through Discover automatically.
