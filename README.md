@@ -177,7 +177,7 @@ With the patch applied, Moonlight Armada sets the controls automatically and HEV
 
 [`contrib/kernel/0002-media-qcom-iris-clock-low-latency-decoding-for-laten.patch`](contrib/kernel/) goes on top and helps every codec, H.264 included. Mainline Iris sets the decoder clock from the input frame rate it measured over the last second, and always votes DDR bandwidth for 30 FPS. That's just enough to keep up, so each frame takes about one frame interval to decode (8.6 ms at 120 FPS and 16 ms at 60 FPS on the Odin 3 in Game Mode). When a client asks for low latency through the display delay controls, the patch keeps the frame rate at the maximum, so the clock and bandwidth vote are set for the fastest decode. Other clients keep today's power behavior.
 
-Both patches are compile-tested for arm64 against mainline with `W=1`, but not yet tested on hardware. It's meant for the ArmadaOS kernel maintainers, and each needs a `Signed-off-by` from whoever submits it upstream. See [`contrib/kernel/README.md`](contrib/kernel/README.md).
+Both patches are compile-tested for arm64 against mainline with `W=1`, but not yet tested on hardware. They're meant for the ArmadaOS kernel maintainers, and each needs a `Signed-off-by` from whoever submits it upstream. See [`contrib/kernel/README.md`](contrib/kernel/README.md).
 
 ## The new interface
 
