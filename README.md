@@ -68,20 +68,25 @@ Open Moonlight Armada on the handheld while both are on the same network. Your P
 3. To see what it's doing, also turn on **Show performance stats while streaming**.
 4. Start a stream.
 
-Ultra low latency mode works best with the **H.264** video codec on today's ArmadaOS, and picks it for you when the codec setting is left on **Automatic** with HDR off. It also turns off **frame pacing**, which smooths out uneven frames by holding them back briefly.
+Ultra low latency mode works best with the **H.264** video codec on today's ArmadaOS, and picks it for you when the codec setting is left on **Automatic** with HDR off. It also turns off **V-Sync** and **frame pacing**. V-Sync makes each frame wait for the screen's next refresh, which costs about 6 ms per frame in Game Mode, and frame pacing smooths out uneven frames by holding them back briefly. Without V-Sync you may occasionally see tearing. In Game Mode, also open the **…** quick menu, go to **Performance**, turn on **Allow Tearing**, and turn off the frame limit.
 
 ## Is it actually faster?
 
-Here's what we've measured so far on an AYN Odin 3, using the **Average decoding time** in the performance stats. That's how long each frame of the stream takes from arriving on the handheld to being turned into a picture.
+Here's what we've measured on an AYN Odin 3 in Game Mode, streaming H.264 at 1080p and 120 FPS. The performance stats show where the time goes for each frame:
 
-| | Game Mode | Desktop Mode |
-|---|---|---|
-| Regular Moonlight | 6–7 ms | under 1 ms |
-| Moonlight Armada, ultra low latency on | about 6 ms | about 0.7 ms |
+- **Average decoding time:** how long each frame takes from arriving on the handheld to being turned into a picture.
+- **Average rendering time:** how long it takes to put that picture on screen, including any wait for the screen to refresh.
 
-So far, **the difference you notice comes from Game Mode vs Desktop Mode, not from ultra low latency mode.** Both apps decode in under 1 ms in Desktop Mode, and both are several milliseconds slower in Game Mode. We're working out what Game Mode does differently. Desktop Mode isn't a practical fix, because Steam's controller support there doesn't work well with the Odin's built-in gamepad.
+| Game Mode, 120 FPS | Rendering time |
+|---|---|
+| V-Sync on | 6.5 ms |
+| V-Sync off | 0.4 ms |
 
-The performance stats also show a **Video decoder** line. If it says `(software)`, the handheld's CPU is decoding the video instead of its video chip, which is slower. That's one possible explanation for the Game Mode numbers.
+**V-Sync was the biggest source of delay in Game Mode.** With it on, every frame waited for the screen's next refresh, which added about 6 ms. Ultra low latency mode now turns V-Sync off for you.
+
+**Ultra low latency mode doesn't change decoding time on today's ArmadaOS.** Switching it on and off made no difference in our tests. That's expected: the Odin's video driver has no low latency controls to turn on, and with H.264 the regular Moonlight already gets each frame back as soon as it's decoded. On this device the mode's real benefit is turning off V-Sync and frame pacing. The decoding settings are there for drivers that support them, and for HEVC and AV1 once the driver change described below lands.
+
+Decoding took about 4.9 ms in that same Game Mode test. In Desktop Mode, both the regular Moonlight and Moonlight Armada decode in under 1 ms. We haven't yet measured Game Mode decoding with V-Sync off, so that's next. Desktop Mode isn't a practical way around it, because Steam's controller support there doesn't work well with the Odin's built-in gamepad.
 
 Measure with a game running and moving, so the stats show close to your full frame rate. When the picture is still, your PC sends fewer frames (16 FPS on a still desktop, for example), the handheld's video chip slows down between them, and decoding times look worse than they are while you play. The **Average decoding time** line also splits into **waiting** (time a frame sat in line before reaching the video chip) and **in decoder** (time inside it), and a **Display** line shows the CPU clock speeds, which helps tell these cases apart.
 
@@ -269,7 +274,7 @@ Pull requests and pushes to `main` upload both as build artifacts. Tags starting
 
 ## Roadmap
 
-- **Close the Game Mode gap.** Find out why both apps decode about 5–6 ms slower in Game Mode than in Desktop Mode, then compare ultra low latency on and off in the same mode.
+- **Close the Game Mode decode gap.** Find out why decoding takes about 4–5 ms in Game Mode but under 1 ms in Desktop Mode, then compare ultra low latency on and off in the same mode.
 - **Zero-copy frames.** FFmpeg's v4l2m2m decoder returns frames in system memory (NV12), so each frame is copied before display. DRM-PRIME output for V4L2 would remove that copy.
 - **Upstream the Iris patch** through the ArmadaOS kernel and then mainline Linux, so HEVC gets the full mode everywhere.
 - **Publish on Flathub** so updates arrive through Discover automatically.

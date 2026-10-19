@@ -128,7 +128,7 @@ Flickable {
                     ToolTip.delay: 1000
                     ToolTip.timeout: 8000
                     ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Asks the hardware decoder to output each frame as soon as it is decoded and gives decoding real-time priority. Frame pacing is turned off while this is enabled.")
+                    ToolTip.text: qsTr("Asks the hardware decoder to output each frame as soon as it is decoded and gives decoding real-time priority. V-Sync and frame pacing are turned off while this is enabled.")
                 }
 
                 Label {
@@ -863,6 +863,7 @@ Flickable {
                         hoverEnabled: true
                         text: qsTr("V-Sync")
                         font.pointSize:  12
+                        enabled: !StreamingPreferences.ultraLowLatency
                         checked: StreamingPreferences.enableVsync
                         onCheckedChanged: {
                             StreamingPreferences.enableVsync = checked
