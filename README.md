@@ -86,7 +86,7 @@ Here's what we've measured on an AYN Odin 3 in Game Mode, streaming H.264 at 108
 
 **Ultra low latency mode doesn't change decoding time on today's ArmadaOS.** Switching it on and off made no difference in our tests. That's expected: the Odin's video driver has no low latency controls to turn on, and with H.264 the regular Moonlight already gets each frame back as soon as it's decoded. On this device the mode's real benefit is turning off V-Sync and frame pacing. The decoding settings are there for drivers that support them, and for HEVC and AV1 once the driver change described below lands.
 
-**The slow decoding in Game Mode comes from the video driver, not Moonlight.** Each frame spends about as long inside the decoder as the gap between frames: 8.6 ms at 120 FPS, and 16 ms at 60 FPS. The likely cause is that the Odin's driver decodes in two stages, which holds each frame until the next one arrives. Qualcomm's own low latency mode switches that off, but today's ArmadaOS driver doesn't offer it. See [Qualcomm's real low latency mode](#qualcomms-real-low-latency-mode). Desktop Mode isn't a practical way around it, because Steam's controller support there doesn't work well with the Odin's built-in gamepad.
+**The slow decoding in Game Mode comes from the video driver, not Moonlight.** Each frame spends about as long inside the decoder as the gap between frames: 8.6 ms at 120 FPS, and 16 ms at 60 FPS. The likely cause is that the Odin's driver decodes in two stages, which holds each frame until the next one arrives. Qualcomm's own low latency mode switches that off. ArmadaOS is rolling out a kernel that does the same for every streaming app, starting on its preview channel. See [Qualcomm's real low latency mode](#qualcomms-real-low-latency-mode). Desktop Mode isn't a practical way around it, because Steam's controller support there doesn't work well with the Odin's built-in gamepad.
 
 Measure with a game running and moving, so the stats show close to your full frame rate. When the picture is still, your PC sends fewer frames (16 FPS on a still desktop, for example), the handheld's video chip slows down between them, and decoding times look worse than they are while you play. The **Average decoding time** line also splits into **waiting** (time a frame sat in line before reaching the video chip) and **in decoder** (time inside it), and a **Display** line shows the CPU clock speeds, which helps tell these cases apart.
 
@@ -155,7 +155,7 @@ This works because FFmpeg's v4l2m2m wrapper only starts streaming when the first
 
 ### Mainline Iris and the H.264 fast path
 
-The Snapdragon 8 Gen 2, 8 Gen 3 and 8 Elite use Qualcomm's newer **Iris** video core. The mainline `iris` driver, which reports itself as `iris_driver`, doesn't yet expose the display delay controls, so the decode order switch isn't available on today's ArmadaOS kernel.
+The Snapdragon 8 Gen 2, 8 Gen 3 and 8 Elite use Qualcomm's newer **Iris** video core. The mainline `iris` driver, which reports itself as `iris_driver`, doesn't expose the display delay controls on stable ArmadaOS kernels, so the decode order switch isn't available there. The ArmadaOS kernel update described in [Qualcomm's real low latency mode](#qualcomms-real-low-latency-mode) adds them.
 
 For H.264, Moonlight already rewrites each stream's SPS to set `max_dec_frame_buffering = 1`, so the decoder outputs every frame immediately anyway. When ultra low latency mode is on, HDR is off, and an Iris decoder without the control is found, Moonlight Armada therefore moves H.264 to the front of the codec list.
 
@@ -178,7 +178,12 @@ On Android, Snapdragon phones and handhelds use Qualcomm's own `msm_vidc` video 
 
 Decode order output, the separate `vendor.qti-ext-dec-picture-order.enable` setting, maps to `HFI_PROP_DECODE_ORDER_OUTPUT` (`0x0300015b`).
 
-The mainline `iris` driver on today's ArmadaOS has none of this. `iris_set_stage()` picks two stages for any decoder that isn't smaller than 1280x720, with no control to change it. That matches the Game Mode measurements: about one frame interval inside the decoder at both 60 and 120 FPS. If a future kernel exposes a low latency control, Moonlight Armada's ultra low latency mode already looks for boolean driver controls with "low latency" in their name and turns them on.
+The mainline `iris` driver has none of this. `iris_set_stage()` picks two stages for any decoder that isn't smaller than 1280x720, with no control to change it. That matches the Game Mode measurements on stable ArmadaOS: about one frame interval inside the decoder at both 60 and 120 FPS.
+
+ArmadaOS's kernel update ([armada-os/armada#752](https://github.com/armada-os/armada/pull/752), on the preview channel first) brings the same low latency path to Iris:
+
+- Decoder sessions up to 4096x2160 decode in one stage at the top video clock by default, so every streaming app gets it without changes. `qcom_iris.low_latency=0` restores the old behavior.
+- The gen2 decoder gains the display delay controls. A delay of 0 selects decode order output (`HFI_PROP_DECODE_ORDER_OUTPUT`), which Moonlight Armada's ultra low latency mode already sets. With it, the overlay shows `active, Decode order output (iris_driver)`, and HEVC gets the full mode as well as H.264.
 
 ## The new interface
 
