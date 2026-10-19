@@ -62,7 +62,7 @@ jobs:
       - name: Show build environment on failure
         if: failure()
         run: |
-          ls build-dir/files/lib/pkgconfig || true
+          find build-dir/files -name '*.pc' -o -name 'libSDL*' || true
           flatpak build build-dir pkg-config --exists --print-errors SDL2_ttf || true
           flatpak build build-dir pkg-config --modversion sdl2 sdl3 || true
 

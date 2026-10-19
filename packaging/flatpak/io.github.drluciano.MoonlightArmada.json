@@ -61,6 +61,7 @@
 			"builddir": true,
 			"build-options": {
 				"config-opts": [
+					"-DCMAKE_INSTALL_LIBDIR=lib",
 					"-DSDL_ALSA=OFF",
 					"-DSDL_RPATH=OFF",
 					"-DSDL_KMSDRM=OFF",
@@ -84,6 +85,7 @@
 			"builddir": true,
 			"build-options": {
 				"config-opts": [
+					"-DCMAKE_INSTALL_LIBDIR=lib",
 					"-DSDL2COMPAT_TESTS=OFF"
 				]
 			},
@@ -102,6 +104,7 @@
 			"builddir": true,
 			"build-options": {
 				"config-opts": [
+					"-DCMAKE_INSTALL_LIBDIR=lib",
 					"-DSDL2TTF_VENDORED=ON",
 					"-DSDL2TTF_SAMPLES=OFF"
 				]
