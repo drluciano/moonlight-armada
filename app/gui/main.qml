@@ -49,8 +49,10 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
-        // Show the window according to the user's preferences
-        if (SystemProperties.hasDesktopEnvironment) {
+        // Show the window according to the user's preferences. In Steam's Game Mode,
+        // gamescope stretches whatever size the window is to fill the screen, so a
+        // normal window would be drawn at 1280x600 and upscaled.
+        if (SystemProperties.hasDesktopEnvironment && !SystemProperties.isRunningGamescope) {
             if (StreamingPreferences.uiDisplayMode == StreamingPreferences.UI_MAXIMIZED) {
                 window.showMaximized()
             }
@@ -61,6 +63,13 @@ ApplicationWindow {
                 window.show()
             }
         } else {
+            if (SystemProperties.isRunningGamescope) {
+                // gamescope doesn't resize fullscreen windows itself
+                window.x = 0
+                window.y = 0
+                window.width = Screen.width
+                window.height = Screen.height
+            }
             window.showFullScreen()
         }
 
